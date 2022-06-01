@@ -39,7 +39,7 @@ class PneumaticStepper
 	// in certain control strategies
 	// approachDirection: 1 if setpoint must be approached in positive direction, 0 if it does not matter, -1 if in negative direction
 	// frequency: in Hz. Negative value ignores stepping frequency and performs one step at every call of work().
-	PneumaticStepper(int nCylinder, bool doubleActing, bool triState=false, int approachDirection=0, CylinderStrategy cylinderStrategy=CylinderStrategy::ANY_ENGAGE, float frequency=10, long position=0, long setpoint=0, int phaseNr=0, bool running=true);
+	PneumaticStepper(int nCylinder, bool doubleActing, bool triState=false, int approachDirection=0, CylinderStrategy cylinderStrategy=CylinderStrategy::ANY_ENGAGE, float frequency=10, long position=0, long setpoint=0, int phaseNr=0, bool running=true, float hysteresis=0);
 
 	// Returns a two-cylinder, double-acting stepper with default strategy
 	static PneumaticStepper TwoCylinderStepper;
@@ -58,6 +58,8 @@ class PneumaticStepper
 	long getPosition() const { return _position; }
 	long getSetpoint() const { return _setpoint; }
 	void setSetpoint(long setpoint);
+	void setSetpointDouble(double setpoint);
+	void setHysteresis(float hysteresis) { _hysteresis = hysteresis; }
 	bool isPositionValid() const { return _positionValid; }
 	int getPhaseNr() const { return _phaseNr; }
 	bool isFloating() const { return _floating; }
@@ -129,6 +131,7 @@ class PneumaticStepper
 
 	int _errorCount;
 
+	float _hysteresis; // Setting setpoint: if |newSetpoint-_position|<_hysteresis then _setpoint is set to _position, otherwise set to round(newSetpoint). Default 0.
 private: // methods
 	bool usesTiming() { return _frequency>0; }
 
@@ -143,10 +146,10 @@ PneumaticStepper PneumaticStepper::ThreeCylinderStepper = PneumaticStepper(3, fa
 
 
 PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy, 
-	float frequency, long position, long setpoint, int phaseNr, bool running)
+	float frequency, long position, long setpoint, int phaseNr, bool running, float hysteresis)
 	: _n(nCylinder), _doubleActing(doubleActing), _triState(triState), _approachDirection(approachDirection), _cylinderStrategy(cylinderStrategy), 
 	_frequency(frequency), _position(position), _setpoint(setpoint), _lastChangeMillis(millis()), _phaseNr(phaseNr), _running(running), 
-	_floating(false), _positionValid(true), _changed(true), _lastStepDir(0), _errorCount(0)
+	_floating(false), _positionValid(true), _changed(true), _lastStepDir(0), _errorCount(0), _hysteresis(hysteresis)
 {
 	updateCylinderState();
 }
@@ -164,8 +167,25 @@ void PneumaticStepper::setCylinderStrategy(CylinderStrategy cylinderStrategy) {
 }
 
 void PneumaticStepper::setSetpoint(long setpoint) {
-	_setpoint = setpoint;
-	restrictSetpoint();
+	if (abs(setpoint - _position) < _hysteresis) {
+		_setpoint = _position;
+	}
+	else
+	{
+		_setpoint = setpoint;
+		restrictSetpoint();
+	}
+}
+
+void PneumaticStepper::setSetpointDouble(double setpoint) {
+	if (abs(setpoint - _position) < _hysteresis) {
+		_setpoint = _position;
+	}
+	else
+	{
+		_setpoint = round(setpoint);
+		restrictSetpoint();
+	}
 }
 
 void PneumaticStepper::restrictSetpoint() {
