@@ -1,5 +1,6 @@
 /* 
  * Pneumatic stepper motor control using Adafruit servo shield
+ * Video: https://youtu.be/523QuGY_VwU
  * Example uses three valves, connected at ports #0, #1, #2 of the servo shield
  * Analog A0: frequency (0.1..10 Hz)
  * Analog A1: setpoint position (0..127)
