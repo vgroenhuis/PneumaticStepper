@@ -1,11 +1,13 @@
-// Calibration of servo in Adafruit servo shield
-// Connect a potmeter to A0 and a servo to the first port of the servo shield
-// First calibrate the min and max pulse lengths such that the servo travel is 180 deg while respecting the hard endstops. These values can be used for all servos of this brand/type.
-// Next, calibrate the low/high/neutral angles for each individual servo and use these values in the ServoValve constructor.
-// Vincent Groenhuis
-// May, 2019
-//
-// Analog A0: angle (0..180)
+/* 
+ * Calibration of servo in Adafruit servo shield 
+ * Connect a potmeter to A0 and a servo to the first port of the servo shield
+ * First calibrate the min and max pulse lengths such that the servo travel is 180 deg while respecting the hard endstops. These values can be used for all servos of this brand/type.
+ * Next, calibrate the low/high/neutral angles for each individual servo and use these values in the ServoValve constructor.
+ * Of course you can also control a servo without the servo shield, using Arduino pins directly. In that case use the Servo class by #include <Servo.h>
+ * Vincent Groenhuis
+ * May, 2019
+ * Potmeter connected to analog A0 for control angle (0..180 deg)
+ */
 
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>

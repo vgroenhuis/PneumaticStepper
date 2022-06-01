@@ -1,10 +1,11 @@
-// Pneumatic stepper motor control using Adafruit servo shield
-// Example uses three valves, connected at ports #0, #1, #2 of the servo shield
-// Analog A0: frequency (0.1..10 Hz)
-// Analog A1: setpoint position (0..127)
-// Digital 3: if pressed then motor is floating (all valves down). If pressed during boot: different control strategy is used.
-//
-// Serial communication is at 115200 baud
+/* 
+ * Pneumatic stepper motor control using Adafruit servo shield
+ * Example uses three valves, connected at ports #0, #1, #2 of the servo shield
+ * Analog A0: frequency (0.1..10 Hz)
+ * Analog A1: setpoint position (0..127)
+ * Digital 3: if pressed then motor is floating (all valves down). If pressed during boot: different control strategy is used.
+ * Serial communication is at 115200 baud
+ */
 
 #include <Adafruit_PWMServoDriver.h>
 #include <PneumaticStepper.h>

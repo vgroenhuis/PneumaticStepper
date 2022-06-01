@@ -1,4 +1,4 @@
-Pneumatic Servo Library
+Pneumatic Stepper and Servo Library
 
 Vincent Groenhuis
 May, 2019
