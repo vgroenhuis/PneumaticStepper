@@ -1,5 +1,6 @@
 # PneumaticStepper
-Arduino library for pneumatic stepper motors and servo valves
+Arduino library for pneumatic stepper motors and servo valves.
+
 Pneumatic stepper motors are controlled using pneumatic valves, which can be commercial 5/2-way valves (e.g. PV5211-24VDC-1/8 or Festo stuff etc) or low-cost RC servo valves (https://www.thingiverse.com/thing:3655215)
 
 Servo valve files & assembly on Thingiverse: https://www.thingiverse.com/thing:3655215
