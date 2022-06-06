@@ -2,10 +2,11 @@
  * Pneumatic three-cylinder stepper motor controlled by RC servo valves connected to Arduino output pins 2, 3 and 4
  * By Vincent Groenhuis
  * Created May 2019
- * Video: https://youtu.be/523QuGY_VwU
+ * Video: https://youtu.be/523QuGY_VwU (using Adafruit servo shield)
  * Servo-controlled valves on Thingiverse: https://www.thingiverse.com/thing:3655215 so that you can make low-cost 4/2-way pneumatic valves with analog flow control.
  * In this example the steppering frequency is 2 Hz and setpoint position is +100
  * If you prefer to use a servo shield, look at the AdafruitServoShield_PneumaticStepperMotor example instead.
+ * 
  */
 
 #include <PneumaticStepper.h>

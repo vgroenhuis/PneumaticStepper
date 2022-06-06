@@ -105,16 +105,15 @@ void testBasics() {
 	s1.work();
 	s1.work();
 	assert(s1.getPosition() == 2);
+
+	PneumaticStepper myMotor[2] = { PneumaticStepper::TwoCylinderStepper, PneumaticStepper::ThreeCylinderStepper };
 }
 
 void testTiming() {
-	//char buf[100];
 	cout << "Testing timing..." << endl;
 	PneumaticStepper s1 = PneumaticStepper::TwoCylinderStepper; // 10 Hz
 	s1.resetLastChangeTime();
 	s1.setSetpoint(-10);
-	//s1.toString(buf, sizeof(buf));
-	//cout << "s1=" << buf << endl;
 	s1.printState();
 	waitMillis(50);
 
@@ -144,6 +143,26 @@ void testTiming() {
 	waitMillis(100);
 	s2.workUntilNoChange();
 	assert(s2.getPosition() == 2);
+
+	// 
+	PneumaticStepper s3 = PneumaticStepper::TwoCylinderStepper;
+	s3.resetLastChangeTime();
+	s3.setSetpoint(0);
+	s3.setFrequency(1); // 1 Hz
+	waitMillis(1900);
+	s3.setSetpoint(10);
+	s3.work();
+	assert(s3.getPosition() == 1); // lastChangeTime is 1 s, current time 1.9 s
+	waitMillis(200); // current time 2.1 s
+	s3.work();
+	assert(s3.getPosition() == 1); // in v1.0.6 this fails because _lastChangeMillis was 1 s
+	waitMillis(700); // current time 2.8 s
+	s3.work();
+	assert(s3.getPosition() == 1);
+	waitMillis(200); // current time 3.0 s
+	s3.work();
+	assert(s3.getPosition() == 2);
+	//
 }
 
 void testCylinderStrategy(){

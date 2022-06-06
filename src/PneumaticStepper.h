@@ -108,6 +108,7 @@ class PneumaticStepper
 	CylinderStrategy _cylinderStrategy;
 	float _frequency;
 	unsigned long _lastChangeMillis; // timestamp of last change
+	unsigned long _lastWorkMillis; // timestamp of last work() routine
 	bool _positionValid; // normally true, changes to false when floating and changes back to true when calibrating current position
 	long _position;
 	long _setpoint;
@@ -291,7 +292,7 @@ void PneumaticStepper::updateCylinderState() {
 }
 
 void PneumaticStepper::work() {
-	unsigned long tm;
+	unsigned long tm = millis();
 	unsigned long intervalMs;
 	bool doStep = false;
 
@@ -316,7 +317,6 @@ void PneumaticStepper::work() {
 			} else if (_frequency > 0) {
 				intervalMs = (unsigned long)(1000.0/_frequency);
 				// Test if enough time has elapsed since last change
-				tm = millis();
 				unsigned long elapsed = tm-_lastChangeMillis;
 				if (elapsed >= intervalMs) {
 					doStep = true;
@@ -355,16 +355,21 @@ void PneumaticStepper::work() {
 		}
 		if (advanceClock && _frequency > 0) {
 			_lastChangeMillis += intervalMs;
-			if (_lastChangeMillis+intervalMs < tm) {
-				// the actual interval was twice the designed interval so the work is lagging
+			if (_lastChangeMillis < _lastWorkMillis) {
+				// the previous work() should have executed the step, so the motor frequency was just changed
 				_lastChangeMillis = tm;
-			}			
+			}
+			else if (_lastChangeMillis + 0.1*intervalMs < tm) {
+				// to avoid too small intervals (smaller than 90% of nominal) due to inconsistent calling of work()
+				_lastChangeMillis = tm;
+			}
 		}
 	}
 	
 	updateCylinderState();
 	
 	_changed |= doStep;
+	_lastWorkMillis = tm;
 }
 
 void PneumaticStepper::workUntilNoChange() {
