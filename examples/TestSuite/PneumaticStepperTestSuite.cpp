@@ -377,3 +377,12 @@ int main() {
 	return 0;
 }
 
+/*
+ * To update library :
+ * 1. increment version in library.properties to v1.0.x
+ * 2. git add .
+ * 3. git commit -m "message"
+ * 4. git push
+ * 5. git tag "v1.0.x"    or    git tag -a "v1.0.x" -m "changes"
+ * 6. git push origin v1.0.x
+*/
