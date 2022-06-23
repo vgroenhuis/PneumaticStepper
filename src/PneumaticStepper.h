@@ -100,9 +100,9 @@ class PneumaticStepper
 	// Prints representation to serial (or stdout if non-Arduino)
 	void printState() const;
   private:
-    const int _n;
-	const bool _doubleActing;
-	const bool _triState;
+    int _n;
+	bool _doubleActing;
+	bool _triState;
 	
 	int _approachDirection;
 	CylinderStrategy _cylinderStrategy;
@@ -154,7 +154,8 @@ PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triSta
 {
 	updateCylinderState();
 }
-	
+
+
 bool PneumaticStepper::changed() {
 	bool tmp = _changed;
 	_changed = false;

@@ -106,7 +106,11 @@ void testBasics() {
 	s1.work();
 	assert(s1.getPosition() == 2);
 
+	// test array of motors
 	PneumaticStepper myMotor[2] = { PneumaticStepper::TwoCylinderStepper, PneumaticStepper::ThreeCylinderStepper };
+
+	// test copy constructor
+	s1 = PneumaticStepper::TwoCylinderStepper;
 }
 
 void testTiming() {
