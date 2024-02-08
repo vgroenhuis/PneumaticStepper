@@ -88,7 +88,7 @@ class PneumaticStepper
 	void pause() { _running = false; }
 
 	// Resets last change time to current time, blocking changes to position for the next period
-	void resetLastChangeTime() { _lastChangeMillis = millis(); }
+	void resetLastChangeTime() { _lastChangeUs = micros(); }
 
 	// Performs logic, advancing the motor by one step towards the setpoint if enough time has elapsed since last change
 	// Sets _changed to true if anything was changed.
@@ -107,8 +107,8 @@ class PneumaticStepper
 	int _approachDirection;
 	CylinderStrategy _cylinderStrategy;
 	float _frequency;
-	unsigned long _lastChangeMillis; // timestamp of last change
-	unsigned long _lastWorkMillis; // timestamp of last work() routine
+	unsigned long _lastChangeUs; // timestamp of last change
+	unsigned long _lastWorkUs; // timestamp of last work() routine
 	bool _positionValid; // normally true, changes to false when floating and changes back to true when calibrating current position
 	long _position;
 	long _setpoint;
@@ -149,7 +149,7 @@ PneumaticStepper PneumaticStepper::ThreeCylinderStepper = PneumaticStepper(3, fa
 PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy, 
 	float frequency, long position, long setpoint, int phaseNr, bool running, float hysteresis)
 	: _n(nCylinder), _doubleActing(doubleActing), _triState(triState), _approachDirection(approachDirection), _cylinderStrategy(cylinderStrategy), 
-	_frequency(frequency), _position(position), _setpoint(setpoint), _lastChangeMillis(millis()), _phaseNr(phaseNr), _running(running), 
+	_frequency(frequency), _position(position), _setpoint(setpoint), _lastChangeUs(micros()), _phaseNr(phaseNr), _running(running), 
 	_floating(false), _positionValid(true), _changed(true), _lastStepDir(0), _errorCount(0), _hysteresis(hysteresis)
 {
 	updateCylinderState();
@@ -293,8 +293,8 @@ void PneumaticStepper::updateCylinderState() {
 }
 
 void PneumaticStepper::work() {
-	unsigned long tm = millis();
-	unsigned long intervalMs;
+	unsigned long timeUs = micros();
+	unsigned long intervalUs;
 	bool doStep = false;
 
 	// Do a step if: not at setpoint, running and enough time has elapsed
@@ -316,10 +316,10 @@ void PneumaticStepper::work() {
 			if (_frequency < 0) {
 				doStep = true;
 			} else if (_frequency > 0) {
-				intervalMs = (unsigned long)(1000.0/_frequency);
+				intervalUs = (unsigned long)(1000000.0/_frequency);
 				// Test if enough time has elapsed since last change
-				unsigned long elapsed = tm-_lastChangeMillis;
-				if (elapsed >= intervalMs) {
+				unsigned long elapsedUs = timeUs-_lastChangeUs;
+				if (elapsedUs >= intervalUs) {
 					doStep = true;
 				}
 			}
@@ -346,7 +346,7 @@ void PneumaticStepper::work() {
 
 		_lastStepDir = step;
 
-		// Skip adjusting _lastChangeMillis if current phase is not consistent with cylinder strategy
+		// Skip adjusting _lastChangeUs if current phase is not consistent with cylinder strategy
 		bool advanceClock = true;
 		if (_cylinderStrategy == DOUBLE_ENGAGE_ONLY && (_phaseNr & 1) == 0) {
 			advanceClock = false;
@@ -355,14 +355,14 @@ void PneumaticStepper::work() {
 			advanceClock = false;
 		}
 		if (advanceClock && _frequency > 0) {
-			_lastChangeMillis += intervalMs;
-			if (_lastChangeMillis < _lastWorkMillis) {
-				// the previous work() should have executed the step, so the motor frequency was just changed
-				_lastChangeMillis = tm;
+			_lastChangeUs += intervalUs;
+			if (_lastChangeUs < _lastWorkUs) {
+				// the previous work() should have executed the step, so the motor frequency was probably just changed
+				_lastChangeUs = timeUs;
 			}
-			else if (_lastChangeMillis + 0.1*intervalMs < tm) {
+			else if (_lastChangeUs + 0.1*intervalUs < timeUs) {
 				// to avoid too small intervals (smaller than 90% of nominal) due to inconsistent calling of work()
-				_lastChangeMillis = tm;
+				_lastChangeUs = timeUs;
 			}
 		}
 	}
@@ -448,7 +448,7 @@ void PneumaticStepper::printState() const {
 		cout << "?";
 	}
 
-	cout << " freq=" << setprecision(2) << _frequency << " time=" << millis() << " lastChange=" << _lastChangeMillis << " pos=" << _position << " set=" << _setpoint
+	cout << " freq=" << setprecision(2) << _frequency << " timeUs=" << micros() << " lastChangeUs=" << _lastChangeMicros << " pos=" << _position << " set=" << _setpoint
 		<< " phaseNr=" << _phaseNr << " cyl=[";
 	for (int i = 0; i < _n; i++) {
 		cout << (int)_cylinderState[i];
