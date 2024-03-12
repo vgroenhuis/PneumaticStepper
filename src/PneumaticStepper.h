@@ -9,7 +9,7 @@
 	The PneumaticStepper class does not make use of hardware timers. Instead, the work() function needs to be called periodically to update the state.
 	The work() function returns true if the cylinder state has changed since the last call to work(). The caller is then responsible for driving the appropriate pins or servo objects to bring the software cylinder state to the physical cylinder.
   
-	Copyright (c) 2019 Vincent Groenhuis
+	Copyright (c) 2019-2024 Vincent Groenhuis
 	License: CC-BY-SA
 */
 #ifndef PNEUMATIC_STEPPER_H
@@ -356,11 +356,13 @@ void PneumaticStepper::work() {
 		}
 		if (advanceClock && _frequency > 0) {
 			_lastChangeUs += intervalUs;
-			if (_lastChangeUs < _lastWorkUs) {
-				// the previous work() should have executed the step, so the motor frequency was probably just changed
+			if (_lastChangeUs > _lastWorkUs + 2*intervalUs) {
+				// _lastChangeUs is inconsistent, probably because the motor has not been operated for a while
+				_lastChangeUs = _lastWorkUs + 2*intervalUs;
+			} else if (_lastChangeUs < _lastWorkUs) {
+				// the previous work() should have executed the step, so the motor frequency was probably just changed. Or _lastChangeUs rolled over.
 				_lastChangeUs = timeUs;
-			}
-			else if (_lastChangeUs + 0.1*intervalUs < timeUs) {
+			} else if (_lastChangeUs + 0.1*intervalUs < timeUs) {
 				// to avoid too small intervals (smaller than 90% of nominal) due to inconsistent calling of work()
 				_lastChangeUs = timeUs;
 			}
@@ -370,7 +372,7 @@ void PneumaticStepper::work() {
 	updateCylinderState();
 	
 	_changed |= doStep;
-	_lastWorkMillis = tm;
+	_lastWorkUs = timeUs;
 }
 
 void PneumaticStepper::workUntilNoChange() {
@@ -410,9 +412,9 @@ void PneumaticStepper::printState() const {
 	Serial.print(" freq=");
 	Serial.print(_frequency,2);
 	Serial.print(" time=");
-	Serial.print(millis());
+	Serial.print(micros());
 	Serial.print(" lastChange=");
-	Serial.print(_lastChangeMillis);
+	Serial.print(_lastChangeUs);
 	Serial.print(" pos=");
 	Serial.print(_position);
 	Serial.print(" set=");
