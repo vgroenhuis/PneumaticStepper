@@ -16,6 +16,7 @@
 #define PNEUMATIC_STEPPER_H
 
 constexpr int MAX_CYLINDERS = 8; // increase if using more cylinders;
+constexpr float MAX_JITTER = 0.05f; // Timestamps may be off by at most this fraction of one period. This allows to keep a consistent frequency even when timing is slightly off.
 
 class PneumaticStepper
 {
@@ -185,7 +186,7 @@ void PneumaticStepper::setSetpointDouble(double setpoint) {
 	}
 	else
 	{
-		_setpoint = round(setpoint);
+		_setpoint = roundf(setpoint);
 		restrictSetpoint();
 	}
 }
@@ -355,15 +356,16 @@ void PneumaticStepper::work() {
 			advanceClock = false;
 		}
 		if (advanceClock && _frequency > 0) {
+			/*
+				In normal operation, _lastChangeUs is incremented by intervalUs and then approximately equal to timeUs
+				_lastChangeUs may lag by at most MAX_JITTER*intervalUs
+				If lag is larget then _lastChangeUs is set equal to timeUs.
+			*/
+
 			_lastChangeUs += intervalUs;
-			if (_lastChangeUs > _lastWorkUs + 2*intervalUs) {
-				// _lastChangeUs is inconsistent, probably because the motor has not been operated for a while
-				_lastChangeUs = _lastWorkUs + 2*intervalUs;
-			} else if (_lastChangeUs < _lastWorkUs) {
-				// the previous work() should have executed the step, so the motor frequency was probably just changed. Or _lastChangeUs rolled over.
-				_lastChangeUs = timeUs;
-			} else if (_lastChangeUs + 0.1*intervalUs < timeUs) {
-				// to avoid too small intervals (smaller than 90% of nominal) due to inconsistent calling of work()
+			unsigned long lagUs = timeUs - _lastChangeUs;
+			unsigned long maxLagUs = (unsigned long)(MAX_JITTER*intervalUs);
+			if (lagUs > maxLagUs) {
 				_lastChangeUs = timeUs;
 			}
 		}
@@ -450,7 +452,7 @@ void PneumaticStepper::printState() const {
 		cout << "?";
 	}
 
-	cout << " freq=" << setprecision(2) << _frequency << " timeUs=" << micros() << " lastChangeUs=" << _lastChangeMicros << " pos=" << _position << " set=" << _setpoint
+	cout << " freq=" << setprecision(2) << _frequency << " timeUs=" << micros() << " lastChangeUs=" << _lastChangeUs << " pos=" << _position << " set=" << _setpoint
 		<< " phaseNr=" << _phaseNr << " cyl=[";
 	for (int i = 0; i < _n; i++) {
 		cout << (int)_cylinderState[i];
