@@ -377,6 +377,60 @@ void testServoValve() {
 	assert(v3.getSetAngle()==110);
 }
 
+void testSetPhase() {
+	cout << "Testing SetPhase..." << endl;
+	PneumaticStepper s = PneumaticStepper::TwoCylinderStepper;
+	waitMillis(1000);
+	s.work(); // 00
+	assert(!s.getCylinderState(0));
+	assert(!s.getCylinderState(1));
+
+	s.setPhaseNr(1);
+	waitMillis(1000);
+	s.work(); // 01
+	assert(s.getPosition() == 0);
+	assert(s.getPhaseNr() == 1);
+	assert(s.getCylinderState(0));
+	assert(!s.getCylinderState(1));
+
+	s.setPosition(2);
+	s.setSetpoint(2);
+	waitMillis(1000);
+	s.work(); // 01
+	assert(s.getPosition() == 2);
+	assert(s.getPhaseNr() == 1);
+	assert(s.getCylinderState(0));
+	assert(!s.getCylinderState(1));
+
+	s.setSetpoint(3);
+	waitMillis(1000);
+	s.work(); // 11
+	assert(s.getPosition() == 3);
+	assert(s.getPhaseNr() == 2);
+	assert(s.getCylinderState(0));
+	assert(s.getCylinderState(1));
+
+	s.setSetpoint(1);
+	waitMillis(1000);
+	s.work(); // 01
+	assert(s.getPosition() == 2);
+	assert(s.getPhaseNr() == 1);
+	assert(s.getCylinderState(0));
+	assert(!s.getCylinderState(1));
+	waitMillis(1000);
+	s.work(); // 00
+	assert(s.getPosition() == 1);
+	assert(s.getPhaseNr() == 0);
+	assert(!s.getCylinderState(0));
+	assert(!s.getCylinderState(1));
+	waitMillis(1000);
+	s.work();
+	waitMillis(1000);
+	s.work();
+	assert(!s.getCylinderState(0));
+	assert(!s.getCylinderState(1));
+}
+
 int main() {
 	testBasics();
 	testTiming();
@@ -385,6 +439,7 @@ int main() {
 	testApproachDirection();
 	testHysteresis();
 	testServoValve();
+	testSetPhase();
 	return 0;
 }
 

@@ -63,6 +63,7 @@ class PneumaticStepper
 	void setHysteresis(float hysteresis) { _hysteresis = hysteresis; }
 	bool isPositionValid() const { return _positionValid; }
 	int getPhaseNr() const { return _phaseNr; }
+	void setPhaseNr(int phaseNr);
 	bool isFloating() const { return _floating; }
 	// Returns difference between setpoint and current position
 	long getStepsTodo() const { return _setpoint-_position; }
@@ -271,9 +272,10 @@ void PneumaticStepper::updateCylinderState() {
 					_cylinderState[_phaseNr - _n] = 0;
 				}
 			} else {
-				// Double-acting motor: e.g. 4 cylinders: 0000 0001 0011 0111 1111 1110 1100 1000.
+				// Double-acting motor: e.g. 2 cylinders: 00 01 11 10. 3 cylinders: 000 001 011 111 110 100.
+				// 4 cylinders: 0000 0001 0011 0111 1111 1110 1100 1000.
 				for (int i = 0; i < _n; i++) {
-					_cylinderState[i] = (i <= _phaseNr) && (_phaseNr < _n + i);
+					_cylinderState[i] = (i < _phaseNr) && (_phaseNr <= _n + i);
 				}
 			}
 		} else {
@@ -383,6 +385,11 @@ void PneumaticStepper::workUntilNoChange() {
 		work();
 		finished = !changed();
 	}
+}
+
+void PneumaticStepper::setPhaseNr(int phaseNr) {
+	_phaseNr = phaseNr;
+	_changed = true;
 }
 
 void PneumaticStepper::printState() const {
