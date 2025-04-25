@@ -47,19 +47,19 @@ class PneumaticStepper
 	// Returns a three-cylinder, single-acting stepper with default strategy
 	static PneumaticStepper ThreeCylinderStepper;
 	
-	int getCylinderCount() const { return _n; }
+	int getCylinderCount() const { return _numCylinders; }
 	bool isDoubleActing() const { return _doubleActing; }
 	bool isTriState() const { return _triState; }
 	void setApproachDirection(int approachDirection) { _approachDirection = approachDirection; }
 	int getApproachDirection() const { return _approachDirection; }
 	void setCylinderStrategy(CylinderStrategy cylinderStrategy);
 	CylinderStrategy getCylinderStrategy() const { return _cylinderStrategy; }
-	void setFrequency(float frequency) { _frequency = frequency; }
+	virtual void setFrequency(float frequency) { _frequency = frequency; _intervalUs = 1000000 / frequency; }
 	float getFrequency() const { return _frequency; }
 	long getPosition() const { return _position; }
 	long getSetpoint() const { return _setpoint; }
-	void setSetpoint(long setpoint);
-	void setSetpointDouble(double setpoint);
+	virtual void setSetpoint(long setpoint);
+	virtual void setSetpointDouble(double setpoint);
 	void setHysteresis(float hysteresis) { _hysteresis = hysteresis; }
 	bool isPositionValid() const { return _positionValid; }
 	int getPhaseNr() const { return _phaseNr; }
@@ -94,15 +94,16 @@ class PneumaticStepper
 
 	// Performs logic, advancing the motor by one step towards the setpoint if enough time has elapsed since last change
 	// Sets _changed to true if anything was changed.
-	void work();
+	virtual bool work();
 
 	// Repeatedly calls work() until changed() returns false
-	void workUntilNoChange();
+	virtual void workUntilNoChange();
 
 	// Prints representation to serial (or stdout if non-Arduino)
 	void printState() const;
-  private:
-    int _n;
+  protected:
+  	unsigned long _intervalUs = 0;
+    int _numCylinders;
 	bool _doubleActing;
 	bool _triState;
 	
@@ -135,7 +136,7 @@ class PneumaticStepper
 	int _errorCount;
 
 	float _hysteresis; // Setting setpoint: if |newSetpoint-_position|<_hysteresis then _setpoint is set to _position, otherwise set to round(newSetpoint). Default 0.
-private: // methods
+protected: // methods
 	bool usesTiming() { return _frequency>0; }
 
 	// Restricts _setpoint to a valid value, taking _cylinderStrategy into account. Sometimes only an odd or even setpoint is allowed.
@@ -150,9 +151,9 @@ PneumaticStepper PneumaticStepper::ThreeCylinderStepper = PneumaticStepper(3, fa
 
 PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy, 
 	float frequency, long position, long setpoint, int phaseNr, bool running, float hysteresis)
-	: _n(nCylinder), _doubleActing(doubleActing), _triState(triState), _approachDirection(approachDirection), _cylinderStrategy(cylinderStrategy), 
+	: _numCylinders(nCylinder), _doubleActing(doubleActing), _triState(triState), _approachDirection(approachDirection), _cylinderStrategy(cylinderStrategy), 
 	_frequency(frequency), _position(position), _setpoint(setpoint), _lastChangeUs(micros()), _phaseNr(phaseNr), _running(running), 
-	_floating(false), _positionValid(true), _changed(true), _lastStepDir(0), _errorCount(0), _hysteresis(hysteresis)
+	_floating(false), _positionValid(true), _changed(true), _lastStepDir(0), _errorCount(0), _hysteresis(hysteresis), _intervalUs(1000000/frequency)
 {
 	updateCylinderState();
 }
@@ -193,9 +194,9 @@ void PneumaticStepper::setSetpointDouble(double setpoint) {
 }
 
 void PneumaticStepper::restrictSetpoint() {
-	long finalPhaseNr = (_phaseNr + (_setpoint - _position)) % (2 * _n);
+	long finalPhaseNr = (_phaseNr + (_setpoint - _position)) % (2 * _numCylinders);
 	if (finalPhaseNr < 0) {
-		finalPhaseNr += 2 * _n;
+		finalPhaseNr += 2 * _numCylinders;
 	}
 	if (!_doubleActing) {
 		switch(_cylinderStrategy) {
@@ -244,17 +245,17 @@ void PneumaticStepper::updateCylinderState() {
 	if (_floating) {
 		if (!_doubleActing) {
 			// all cylinders down
-			for (int i=0;i<_n;i++) {
+			for (int i=0;i<_numCylinders;i++) {
 				_cylinderState[i]=0;
 			}
 		} else if (_triState) {
 			// all cylinders floating
-			for (int i=0;i<_n;i++) {
+			for (int i=0;i<_numCylinders;i++) {
 				_cylinderState[i]=2;
 			}
 		} else {
 			// we can't put it floating ourselves, so assume that system pressure is turned off. Just set all cylinders down.
-			for (int i=0;i<_n;i++) {
+			for (int i=0;i<_numCylinders;i++) {
 				_cylinderState[i]=0;
 			}
 		}
@@ -263,30 +264,30 @@ void PneumaticStepper::updateCylinderState() {
 		if (_doubleActing) {
 			if (_triState) {
 				// Set unused cylinders floating
-				for (int i = 0; i < _n; i++) {
+				for (int i = 0; i < _numCylinders; i++) {
 					_cylinderState[i] = 2;
 				}
-				if (_phaseNr < _n) {
+				if (_phaseNr < _numCylinders) {
 					_cylinderState[_phaseNr] = 1;
 				} else {
-					_cylinderState[_phaseNr - _n] = 0;
+					_cylinderState[_phaseNr - _numCylinders] = 0;
 				}
 			} else {
 				// Double-acting motor: e.g. 2 cylinders: 00 01 11 10. 3 cylinders: 000 001 011 111 110 100.
 				// 4 cylinders: 0000 0001 0011 0111 1111 1110 1100 1000.
-				for (int i = 0; i < _n; i++) {
-					_cylinderState[i] = (i < _phaseNr) && (_phaseNr <= _n + i);
+				for (int i = 0; i < _numCylinders; i++) {
+					_cylinderState[i] = (i < _phaseNr) && (_phaseNr <= _numCylinders + i);
 				}
 			}
 		} else {
 			// Single-acting motor: e.g. 4 cylinders: 0001 0011 0010 0110 0100 1100 1000 1001.
-			for (int i=0;i<_n;i++) {
+			for (int i=0;i<_numCylinders;i++) {
 				// i=0: phaseNr=2n-1, 0, 1, 
 				// i=1: phaseNr=1, 2, 3
 				// i=2: phaseNr=3, 4, 5
 				_cylinderState[i]=0;
 				for (int j=-1;j<=1;j++) {
-					if (_phaseNr==(2*i+j+2*_n)%(2*_n)) {
+					if (_phaseNr==(2*i+j+2*_numCylinders)%(2*_numCylinders)) {
 						_cylinderState[i]=1;
 					}
 				}
@@ -295,9 +296,9 @@ void PneumaticStepper::updateCylinderState() {
 	}
 }
 
-void PneumaticStepper::work() {
+bool PneumaticStepper::work() {
 	unsigned long timeUs = micros();
-	unsigned long intervalUs;
+	//unsigned long intervalUs;
 	bool doStep = false;
 
 	// Do a step if: not at setpoint, running and enough time has elapsed
@@ -319,10 +320,10 @@ void PneumaticStepper::work() {
 			if (_frequency < 0) {
 				doStep = true;
 			} else if (_frequency > 0) {
-				intervalUs = (unsigned long)(1000000.0/_frequency);
+				//intervalUs = (unsigned long)(1000000.0/_frequency);
 				// Test if enough time has elapsed since last change
 				unsigned long elapsedUs = timeUs-_lastChangeUs;
-				if (elapsedUs >= intervalUs) {
+				if (elapsedUs >= _intervalUs) {
 					doStep = true;
 				}
 			}
@@ -344,7 +345,7 @@ void PneumaticStepper::work() {
 			_errorCount++;
 		}
 
-		_phaseNr = (_phaseNr + step + 2 * _n) % (2 * _n);
+		_phaseNr = (_phaseNr + step + 2 * _numCylinders) % (2 * _numCylinders);
 		_position += step;
 
 		_lastStepDir = step;
@@ -364,9 +365,9 @@ void PneumaticStepper::work() {
 				If lag is larget then _lastChangeUs is set equal to timeUs.
 			*/
 
-			_lastChangeUs += intervalUs;
+			_lastChangeUs += _intervalUs;
 			unsigned long lagUs = timeUs - _lastChangeUs;
-			unsigned long maxLagUs = (unsigned long)(MAX_JITTER*intervalUs);
+			unsigned long maxLagUs = (unsigned long)(MAX_JITTER*_intervalUs);
 			if (lagUs > maxLagUs) {
 				_lastChangeUs = timeUs;
 			}
@@ -377,6 +378,7 @@ void PneumaticStepper::work() {
 	
 	_changed |= doStep;
 	_lastWorkUs = timeUs;
+	return doStep;
 }
 
 void PneumaticStepper::workUntilNoChange() {
@@ -395,7 +397,7 @@ void PneumaticStepper::setPhaseNr(int phaseNr) {
 void PneumaticStepper::printState() const {
 #ifdef ARDUINO
 	Serial.print("M-");
-	Serial.print(_n);
+	Serial.print(_numCylinders);
 	Serial.print(" tri=");
 	Serial.print(_triState);
 	Serial.print(" strat=");
@@ -431,14 +433,14 @@ void PneumaticStepper::printState() const {
 	Serial.print(" phaseNr=");
 	Serial.print(_phaseNr);
 	Serial.print(" cyl=[");
-	for (int i = 0; i < _n; i++) {
+	for (int i = 0; i < _numCylinders; i++) {
 		Serial.print(_cylinderState[i]);
 	}
 	Serial.print("] err=");
 	Serial.print(_errorCount);
 	Serial.println();
 #else
-	cout << "M-" << _n << " tri=" << _triState << " strat=";
+	cout << "M-" << _numCylinders << " tri=" << _triState << " strat=";
 	switch (_cylinderStrategy) {
 	case SINGLE_ENGAGE_ONLY:
 		cout << "single only";
@@ -461,7 +463,7 @@ void PneumaticStepper::printState() const {
 
 	cout << " freq=" << setprecision(2) << _frequency << " timeUs=" << micros() << " lastChangeUs=" << _lastChangeUs << " pos=" << _position << " set=" << _setpoint
 		<< " phaseNr=" << _phaseNr << " cyl=[";
-	for (int i = 0; i < _n; i++) {
+	for (int i = 0; i < _numCylinders; i++) {
 		cout << (int)_cylinderState[i];
 	}
 	cout << "] err=" << _errorCount << endl;
