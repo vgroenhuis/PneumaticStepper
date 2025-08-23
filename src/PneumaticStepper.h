@@ -150,12 +150,28 @@ PneumaticStepper PneumaticStepper::ThreeCylinderStepper = PneumaticStepper(3, fa
 
 
 PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy, 
-	float frequency, long position, long setpoint, int phaseNr, bool running, float hysteresis)
-	: _numCylinders(nCylinder), _doubleActing(doubleActing), _triState(triState), _approachDirection(approachDirection), _cylinderStrategy(cylinderStrategy), 
-	_frequency(frequency), _position(position), _setpoint(setpoint), _lastChangeUs(micros()), _phaseNr(phaseNr), _running(running), 
-	_floating(false), _positionValid(true), _changed(true), _lastStepDir(0), _errorCount(0), _hysteresis(hysteresis), _intervalUs(1000000/frequency)
+    float frequency, long position, long setpoint, int phaseNr, bool running, float hysteresis)
+    : _intervalUs(1000000/frequency),
+      _numCylinders(nCylinder),
+      _doubleActing(doubleActing),
+      _triState(triState),
+      _approachDirection(approachDirection),
+      _cylinderStrategy(cylinderStrategy),
+      _frequency(frequency),
+      _lastChangeUs(micros()),
+      _lastWorkUs(0),
+      _positionValid(true),
+      _position(position),
+      _setpoint(setpoint),
+      _running(running),
+      _phaseNr(phaseNr),
+      _floating(false),
+      _changed(true),
+      _lastStepDir(0),
+      _errorCount(0),
+      _hysteresis(hysteresis)
 {
-	updateCylinderState();
+    updateCylinderState();
 }
 
 
