@@ -16,8 +16,8 @@ extern unsigned long micros();
 
 
 
-PneumaticStepper PneumaticStepper::TwoCylinderStepper = PneumaticStepper(2, true);
-PneumaticStepper PneumaticStepper::ThreeCylinderStepper = PneumaticStepper(3, false);
+//PneumaticStepper PneumaticStepper::TwoCylinderStepper = PneumaticStepper(2, true);
+//PneumaticStepper PneumaticStepper::ThreeCylinderStepper = PneumaticStepper(3, false);
 
 
 PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy, 
@@ -45,6 +45,31 @@ PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triSta
     updateCylinderState();
 }
 
+PneumaticStepper::PneumaticStepper(const PneumaticStepper& other)
+      : _intervalUs(other._intervalUs),
+        _numCylinders(other._numCylinders),
+        _doubleActing(other._doubleActing),
+        _triState(other._triState),
+        _approachDirection(other._approachDirection),
+        _cylinderStrategy(other._cylinderStrategy),
+        _frequency(other._frequency),
+        _lastChangeUs(other._lastChangeUs),
+        _lastWorkUs(other._lastWorkUs),
+        _positionValid(other._positionValid),
+        _position(other._position),
+        _setpoint(other._setpoint),
+        _running(other._running),
+        _phaseNr(other._phaseNr),
+        _floating(other._floating),
+        _changed(other._changed),
+        _lastStepDir(other._lastStepDir),
+        _errorCount(other._errorCount),
+        _hysteresis(other._hysteresis)
+    {
+        for (int i = 0; i < MAX_CYLINDERS; ++i) {
+            _cylinderState[i] = other._cylinderState[i];
+        }
+    }
 
 bool PneumaticStepper::changed() {
 	bool tmp = _changed;

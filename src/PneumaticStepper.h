@@ -46,11 +46,16 @@ class PneumaticStepper
 	// frequency: in Hz. Negative value ignores stepping frequency and performs one step at every call of work().
 	PneumaticStepper(int nCylinder, bool doubleActing, bool triState=false, int approachDirection=0, CylinderStrategy cylinderStrategy=ANY_ENGAGE, float frequency=10, long position=0, long setpoint=0, int phaseNr=0, bool running=true, float hysteresis=0);
 
+	PneumaticStepper(const PneumaticStepper&);
+
+	static PneumaticStepper makeTwoCylinderStepper() { return PneumaticStepper(2, true); }
+	static PneumaticStepper makeThreeCylinderStepper() { return PneumaticStepper(3, false); }
+
 	// Returns a two-cylinder, double-acting stepper with default strategy
-	static PneumaticStepper TwoCylinderStepper;
+	//static PneumaticStepper TwoCylinderStepper;
 	// Returns a three-cylinder, single-acting stepper with default strategy
-	static PneumaticStepper ThreeCylinderStepper;
-	
+	//static PneumaticStepper ThreeCylinderStepper;
+
 	int getCylinderCount() const { return _numCylinders; }
 	bool isDoubleActing() const { return _doubleActing; }
 	bool isTriState() const { return _triState; }
@@ -58,12 +63,12 @@ class PneumaticStepper
 	int getApproachDirection() const { return _approachDirection; }
 	void setCylinderStrategy(CylinderStrategy cylinderStrategy);
 	CylinderStrategy getCylinderStrategy() const { return _cylinderStrategy; }
-	virtual void setFrequency(float frequency) { _frequency = frequency; _intervalUs = 1000000 / frequency; }
+	void setFrequency(float frequency) { _frequency = frequency; _intervalUs = 1000000 / frequency; }
 	float getFrequency() const { return _frequency; }
 	long getPosition() const { return _position; }
 	long getSetpoint() const { return _setpoint; }
-	virtual void setSetpoint(long setpoint);
-	virtual void setSetpointDouble(double setpoint);
+	void setSetpoint(long setpoint);
+	void setSetpointDouble(double setpoint);
 	void setHysteresis(float hysteresis) { _hysteresis = hysteresis; }
 	bool isPositionValid() const { return _positionValid; }
 	int getPhaseNr() const { return _phaseNr; }
@@ -98,10 +103,10 @@ class PneumaticStepper
 
 	// Performs logic, advancing the motor by one step towards the setpoint if enough time has elapsed since last change
 	// Sets _changed to true if anything was changed.
-	virtual bool work();
+	bool work();
 
 	// Repeatedly calls work() until changed() returns false
-	virtual void workUntilNoChange();
+	void workUntilNoChange();
 
 	// Prints representation to serial (or stdout if non-Arduino)
 	void printState() const;
@@ -148,6 +153,7 @@ protected: // methods
 	// Must be called after _floating and/or _phaseNr are changed.
 	void updateCylinderState();
 };
+
 
 #endif
 

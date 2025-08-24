@@ -21,10 +21,12 @@ class PneuAccelStepper : public PneumaticStepper {
     PneuAccelStepper(int nCylinder, bool doubleActing, bool triState = false, int approachDirection = 0, CylinderStrategy cylinderStrategy = ANY_ENGAGE, float frequency = 10, long position = 0, long setpoint = 0, int phaseNr = 0, bool running = true, float hysteresis = 0);
 
     // Returns a two-cylinder, double-acting stepper with default strategy
-    static PneuAccelStepper TwoCylinderAccelStepper;
+    //static PneuAccelStepper TwoCylinderAccelStepper;
     // Returns a three-cylinder, single-acting stepper with default strategy
-    static PneuAccelStepper ThreeCylinderAccelStepper;
+    //static PneuAccelStepper ThreeCylinderAccelStepper;
 
+    static PneuAccelStepper makeTwoCylinderAccelStepper() { return PneuAccelStepper(2, true); }
+    static PneuAccelStepper makeThreeCylinderAccelStepper() { return PneuAccelStepper(3, false); }
 
     void setSetpointDouble(double setpoint); // override;
     void setSetpoint(long setpoint); // override;
@@ -32,7 +34,10 @@ class PneuAccelStepper : public PneumaticStepper {
     bool work(); // override;
     void workUntilNoChange(); // override;
     void setAcceleration(float acceleration);
+    float getAcceleration() const { return _acceleration; }
     long distanceToGo();
+    void printState() const;
+    long getStepsToStop() const;
     //void printSpeed();
     //void printn();
   private:
@@ -57,7 +62,7 @@ class PneuAccelStepper : public PneumaticStepper {
     /// The step counter for speed calculations
     long _n;
 
-    /// Initial step size in microseconds
+    /// Initial step size in microseconds based on acceleration only (not on frequency)
     float _c0;
 
     /// Last step size in microseconds
