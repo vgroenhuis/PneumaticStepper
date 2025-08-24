@@ -532,7 +532,7 @@ void PneuAccelStepper::printState() const {
 		cout << "?";
 	}
 
-	cout << " freq=" << setprecision(2) << _frequency << " timeUs=" << micros() << " lastChangeUs=" << _lastChangeUs << " pos=" << _position << " set=" << _setpoint
+	cout << " freq=" << setprecision(2) << _frequency << " accel=" << _acceleration << " time=" << micros()/1000000.0 << " lastChange=" << _lastChangeUs/1000000.0 << " pos=" << _position << " set=" << _setpoint
 		<< " phaseNr=" << _phaseNr << " cyl=[";
 	for (int i = 0; i < _numCylinders; i++) {
 		cout << (int)_cylinderState[i];
