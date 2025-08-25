@@ -1,3 +1,5 @@
+// This example needs to be repaired, with proper hardware
+
 /*
  * Pneumatic three-cylinder stepper motor controlled by RC servo valves connected to Arduino output pins 2, 3 and 4
  * By Vincent Groenhuis

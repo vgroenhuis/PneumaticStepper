@@ -1,3 +1,5 @@
+// This example needs to be repaired, with proper hardware
+
 /* 
  * Pneumatic stepper motor control using Adafruit servo shield
  * Video: https://youtu.be/523QuGY_VwU

@@ -4,13 +4,13 @@
 #include <iostream>
 #include <iomanip>
 using namespace std;
-// When testing the library, the millis() and micros() functions must be defined
+// When testing the library, the millis(), micros() and map(...) functions must be defined
 // by the testing framework.
 extern unsigned long millis();
 extern unsigned long micros();
 extern long map(long x, long in_min, long in_max, long out_min, long out_max);
 /* 
-// example implementation:
+// example implementation for map(...):
 long map(long x, long in_min, long in_max, long out_min, long out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -34,7 +34,7 @@ ServoValve::ServoValve(int neutralAngle, int lowAngle, int highAngle, int minPul
 }
 
 bool ServoValve::isMoving() const {
-	return (millis() - _lastAdjustTimeMs) < _overshootPeriodMs;
+	return (millis() - _lastAdjustTimeMs) < (unsigned long)_overshootPeriodMs;
 }
 
 /*

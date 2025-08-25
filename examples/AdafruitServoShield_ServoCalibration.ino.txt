@@ -1,3 +1,5 @@
+// This example needs to be repaired, with proper hardware
+
 /* 
  * Calibration of servo in Adafruit servo shield 
  * Connect a potmeter to A0 and a servo to the first port of the servo shield
