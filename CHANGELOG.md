@@ -1,6 +1,10 @@
 # Changelog
 PneumaticStepper library
 
+## [1.1.0] - 2025-12-30
+Added fields in library.json
+Added test runners
+
 ## [1.0.15] - 2025-08-25
 One example fixed, one new example created, three examples renamed to .txt as those have to be repaired first.
 

@@ -1,17 +1,26 @@
 {
   "name": "PneumaticStepper",
-  "version": "1.0.15",
-  "authors": [
+  "version": "1.1.0",
+  "description": "A library to manage pneumatic (stepper) motors and servo valves. Can be used to control the several pneumatic devices published by the author on Printables/Thingiverse/MyMiniFactory.",
+  "keywords": ["pneumatic", "stepper", "servo", "valve", "motor"],
+  "repository": 
+  {
+    "type": "git",
+    "url": "https://github.com/vgroenhuis/PneumaticStepper"
+  },
+  "authors":
+  [
     {
       "name": "Vincent Groenhuis",
-      "email": "groenhuis@gmail.com",
+      "email": "v.groenhuis@utwente.nl",
+      "url": "https://www.vincentgroenhuis.nl",      
       "maintainer": true
     }
   ],
-  "description": "A library to manage pneumatic (stepper) motors and servo valves. Can be used to control the several pneumatic devices published by the author on Printables/Thingiverse/MyMiniFactory.",
-  "keywords": ["pneumatic", "stepper", "servo", "valve", "motor"],
-  "repository": {
-    "type": "git",
-    "url": "https://www.thingiverse.com/thing:3655215"
-  }
+  "license": "MIT",
+  "homepage": "https://github.com/vgroenhuis/PneumaticStepper",
+  "dependencies": {
+  },
+  "frameworks": "*",
+  "platforms": "*"
 }
