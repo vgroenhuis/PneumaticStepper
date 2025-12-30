@@ -15,9 +15,6 @@ extern unsigned long micros();
 
 #include "PneuAccelStepper.h"
 
-//PneuAccelStepper PneuAccelStepper::TwoCylinderAccelStepper = PneuAccelStepper(2, true);
-//PneuAccelStepper PneuAccelStepper::ThreeCylinderAccelStepper = PneuAccelStepper(3, false);
-
 PneuAccelStepper::PneuAccelStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy,
                                    float frequency, long position, long setpoint, int phaseNr, bool running, float hysteresis)
   : PneumaticStepper(nCylinder, doubleActing, triState, approachDirection, cylinderStrategy,
@@ -30,7 +27,7 @@ PneuAccelStepper::PneuAccelStepper(int nCylinder, bool doubleActing, bool triSta
   _cmin = 1.0;
   _acceleration = 0.0;
   _direction = DIRECTION_CCW;
-  overshootEnabled = OVERSHOOT;//JUMP_TO_ZERO;//OVERSHOOT;
+  overshootEnabled = OVERSHOOT;
   setAcceleration(10);       //Change acceleration to this value (acceleration value should change, otherwise it doesn't work)
   setFrequency(_frequency); // set maximum frequency
 }
@@ -38,7 +35,6 @@ PneuAccelStepper::PneuAccelStepper(int nCylinder, bool doubleActing, bool triSta
 // Sets a new acceleration value and recalculates where we are on the velocity ramp
 void PneuAccelStepper::setAcceleration(float acceleration)
 {
-  //if (_speed == 0 && distanceToGo() == 0) {
   if (acceleration == 0.0)
     return;
   if (acceleration < 0.0)
@@ -51,33 +47,22 @@ void PneuAccelStepper::setAcceleration(float acceleration)
       _speed = fmin(sqrt((float)(2.0 * acceleration * (float)abs(distanceTo))), _frequency);
       if (distanceTo < 0)_speed = -_speed;
       _cn = abs(1000000.0 / _speed);
-      //if (_cn < 1000000.0 / _frequency)_cn = 1000000.0 / _frequency;
       _intervalUs = _cn;
       _n = (long)((_speed * _speed) / (2.0 * _acceleration)); // Equation 16
-      /*_n = 0;
-        _intervalUs = _c0;
-        _speed = 0;
-      */
     } else {
       // Recompute _n per Equation 17
       _n = _n * (_acceleration / acceleration);
       // New c0 per Equation 7, with correction per Equation 15
     }
     _c0 = 0.676 * sqrt(2.0 / acceleration) * 1000000.0; // Equation 15
-    //if (_c0 < 1000000.0 / _frequency) _c0 = 1000000.0 / _frequency;
     _acceleration = acceleration;
-    //computeNewSpeed(false);
   }
-  //Serial.println("Set acceleration to ");
-  //Serial.println(_acceleration);
   if (_intervalUs < 1000000.0 / _frequency) _intervalUs = 1000000.0 / _frequency;
 }
 
 //Sets the setpoint
 void PneuAccelStepper::setSetpointDouble(double setpoint)
 {
-  //Serial.print("Set setpoint double:");
-  //Serial.println(setpoint);
   PneumaticStepper::setSetpointDouble(setpoint);
   long distanceTo = distanceToGo();
   long stepsToStop = ((_speed * _speed) / (2.0 * _acceleration)); // Equation 16
@@ -91,7 +76,6 @@ void PneuAccelStepper::setSetpointDouble(double setpoint)
       _speed = fmin(sqrt((float)(2.0 * _acceleration * (float)abs(distanceTo))), _frequency);
       if (distanceTo < 0)_speed = -_speed;
       _cn = abs(1000000.0 / _speed);
-      //if (_cn < 1000000.0 / _frequency)_cn = 1000000.0 / _frequency;
       _intervalUs = _cn;
       _direction = _direction == DIRECTION_CW ? DIRECTION_CCW : DIRECTION_CW;
       _n = (long)((_speed * _speed) / (2.0 * _acceleration)); // Equation 16
@@ -101,35 +85,19 @@ void PneuAccelStepper::setSetpointDouble(double setpoint)
     _speed = fmin(sqrt((float)(2.0 * _acceleration * (float)abs(distanceTo))), _frequency);
     if (distanceTo < 0)_speed = -_speed;
     _cn = abs(1000000.0 / _speed);
-    //if (_cn < 1000000.0 / _frequency)_cn = 1000000.0 / _frequency;
     _intervalUs = _cn;
     _direction = _direction == DIRECTION_CW ? DIRECTION_CCW : DIRECTION_CW;
     _n = (long)((_speed * _speed) / (2.0 * _acceleration)); // Equation 16
-    /*_n = 0;
-      _intervalUs = _c0;
-      _speed = 0;
-    */
   }
 
   if (_speed == 0) {
     _direction = (distanceTo > 0) ? DIRECTION_CW : DIRECTION_CCW;
   }
-  /*
-    Serial.println("Overwrote everything:");
-    Serial.println(_speed);
-    Serial.println(_intervalUs);
-    Serial.println(_direction);
-    Serial.println(_n);
-    Serial.println(_cn);
-  */
   if (_intervalUs < 1000000.0 / _frequency) _intervalUs = 1000000.0 / _frequency;
 }
 
 void PneuAccelStepper::setSetpoint(long setpoint)
 {
-  //Serial.print("Set setpoint: ");
-  //Serial.println(setpoint);
-
   PneumaticStepper::setSetpoint(setpoint);
   long distanceTo = distanceToGo();
   long stepsToStop = ((_speed * _speed) / (2.0 * _acceleration)); // Equation 16
@@ -143,25 +111,18 @@ void PneuAccelStepper::setSetpoint(long setpoint)
       _speed = fmin(sqrt((float)(2.0 * _acceleration * (float)abs(distanceTo))), _frequency);
       if (distanceTo < 0)_speed = -_speed;
       _cn = abs(1000000.0 / _speed);
-      //if (_cn < 1000000.0 / _frequency)_cn = 1000000.0 / _frequency;
       _intervalUs = _cn;
       _direction = _direction == DIRECTION_CW ? DIRECTION_CCW : DIRECTION_CW;
       _n = (long)((_speed * _speed) / (2.0 * _acceleration)); // Equation 16
     }
 
   } else if (overshootEnabled != OVERSHOOT && stepsToStop > abs(distanceTo)) {
-    //Serial.println("stepsToStop > abs(distanceTo)");
     _speed = fmin(sqrt((float)(2.0 * _acceleration * (float)abs(distanceTo))), _frequency);
     if (distanceTo < 0)_speed = -_speed;
     _cn = abs(1000000.0 / _speed);
-    //if (_cn < 1000000.0 / _frequency)_cn = 1000000.0 / _frequency;
     _intervalUs = _cn;
     _direction = _direction == DIRECTION_CW ? DIRECTION_CCW : DIRECTION_CW;
     _n = (long)((_speed * _speed) / (2.0 * _acceleration)); // Equation 16
-    /*_n = 0;
-      _intervalUs = _c0;
-      _speed = 0;
-    */
     if (_intervalUs<1000000.0 / _frequency) _intervalUs = 1000000.0 / _frequency;
   }
 
@@ -297,23 +258,10 @@ bool PneuAccelStepper::work()
   _changed |= doStep;
   _lastWorkUs = timeUs;
   if (doStep) {
-    //Serial.println("doStep");
     computeNewSpeed(true);
   }
   return doStep;
 }
-
-/*
-void PneuAccelStepper::printSpeed() {
-  Serial.print("Speed: ");
-  Serial.print(_speed);
-}
-
-void PneuAccelStepper::printn() {
-  Serial.print("int: ");
-  Serial.print(_intervalUs);
-}
-*/
 
 void PneuAccelStepper::workUntilNoChange()
 {
@@ -334,30 +282,12 @@ long PneuAccelStepper::getStepsToStop() const {
 
 unsigned long PneuAccelStepper::computeNewSpeed(bool nIncrease)
 {
-  //Serial.println("Compute new speed called:");
-  //Serial.print("_n=");
-  //Serial.println(_n);
   long distanceTo = PneumaticStepper::getSetpoint() - PneumaticStepper::getPosition();
 
   float tStepsToStop = (((_speed * _speed) / (2.0 * _acceleration))); // Equation 16
   long stepsToStop;
   stepsToStop = (long)(tStepsToStop);
-  //if (tStepsToStop < 0.55) { //
-  //stepsToStop = 0;    // Makes sure that if we are on c0, so lowest speed, that we actually stop
-  //}
 
-  /*
-    Serial.print("DistanceTo: ");
-    Serial.println(distanceTo);
-    Serial.print("StepsToStop: ");
-    Serial.println(stepsToStop);
-    Serial.print("Speed: ");
-    Serial.println(_speed);
-    Serial.print("Acceleration: ");
-    Serial.println(_acceleration);
-    Serial.print("_n: ");
-    Serial.println(_n);
-  */
 
   if (distanceTo == 0 && stepsToStop <= 1)
   {
@@ -446,10 +376,6 @@ unsigned long PneuAccelStepper::computeNewSpeed(bool nIncrease)
   Serial.println(stepsToStop);
   Serial.println("-----");
 #endif
-
-  //Serial.println("Compute new speed finished:");
-  //Serial.print("_n=");
-  //Serial.println(_n);
 
   return _intervalUs;
 }

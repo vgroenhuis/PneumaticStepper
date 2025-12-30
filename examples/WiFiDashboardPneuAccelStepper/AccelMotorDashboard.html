@@ -403,7 +403,7 @@ R"rawliteral(<!DOCTYPE html>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Pneumatic Stepper Motor Dashboard</h1>
+            <h1>🤖 Pneumatic Stepper Motor Dashboard with Acceleration Control</h1>
             <div style="margin-top: 15px;">
                 <a href="/wifi" style="color: white; text-decoration: none; background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 6px; display: inline-block; transition: background 0.3s ease;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
                     📡 WiFi Configuration
@@ -454,6 +454,23 @@ R"rawliteral(<!DOCTYPE html>
                     <div class="frequency-value">
                         <span>1 Hz</span>
                         <span>100 Hz</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acceleration Control Card -->
+            <div class="card">
+                <div class="card-title">
+                    <span>🚀</span> Acceleration
+                </div>
+                <div class="frequency-current">
+                    <span id="accelerationDisplay">100</span> steps/s²
+                </div>
+                <div class="frequency-slider">
+                    <input type="range" id="accelerationSlider" min="0" max="100" value="66.7" oninput="updateAcceleration(this.value)">
+                    <div class="frequency-value">
+                        <span>1 steps/s²</span>
+                        <span>1000 steps/s²</span>
                     </div>
                 </div>
             </div>
@@ -530,6 +547,16 @@ R"rawliteral(<!DOCTYPE html>
                 <canvas id="dataGraph" width="1600" height="750" style="width: 100%; border: 1px solid #ddd; border-radius: 4px; background: white;"></canvas>
             </div>
         </div>
+
+        <!-- Frequency Graph Section -->
+        <div style="margin-top: 20px;">
+            <div class="card">
+                <div class="card-title">
+                    <span>📈</span> Speed history
+                </div>
+                <canvas id="frequencyGraph" width="1600" height="500" style="width: 100%; border: 1px solid #ddd; border-radius: 4px; background: white;"></canvas>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -551,7 +578,8 @@ R"rawliteral(<!DOCTYPE html>
             running: true,
             positionValid: true,
             phase: 0,
-            timestamp: undefined
+            timestamp: undefined,
+            speed: 0
         };
 
         // Initialize WebSocket connection
@@ -566,8 +594,11 @@ R"rawliteral(<!DOCTYPE html>
                 }
             });
             
-            // Update graph at fixed 20 Hz refresh rate (every 50ms)
-            setInterval(drawGraph, 50);
+            // Update graphs at fixed 20 Hz refresh rate (every 50ms)
+            setInterval(() => {
+                drawGraph();
+                drawFrequencyGraph();
+            }, 50);
         });
 
         // WebSocket connection management
@@ -599,6 +630,7 @@ R"rawliteral(<!DOCTYPE html>
                     motorData.positionValid = data.positionValid;
                     motorData.phase = data.phase;
                     motorData.timestamp = data.timestamp;
+                    motorData.speed = data.speed || 0;
                     
                     console.log('Received data:', data);
                     console.log('Cylinders:', motorData.cylinders);
@@ -654,7 +686,8 @@ R"rawliteral(<!DOCTYPE html>
             dataHistory.push({
                 timestamp: timestamp,
                 position: motorData.position,
-                setpoint: motorData.setpoint
+                setpoint: motorData.setpoint,
+                speed: motorData.speed
             });
             
             // Keep only the most recent 6000 data points
@@ -737,6 +770,19 @@ R"rawliteral(<!DOCTYPE html>
             
             // Send to ESP32
             sendCommand('setFrequency', roundedFreq);
+        }
+
+        // Update acceleration (logarithmic scale)
+        function updateAcceleration(sliderValue) {
+            // Convert linear slider (0-100) to logarithmic scale (1-1000 steps/s²)
+            // log scale: accel = 10^(sliderValue/33.333)
+            const acceleration = Math.pow(10, sliderValue / 33.333);
+            const roundedAccel = Math.round(acceleration); // Round to integer
+            
+            document.getElementById('accelerationDisplay').innerText = roundedAccel;
+            
+            // Send to ESP32
+            sendCommand('setAcceleration', roundedAccel);
         }
 
         // Utility functions
@@ -984,6 +1030,146 @@ R"rawliteral(<!DOCTYPE html>
             ctx.stroke();
             ctx.fillStyle = '#333';
             ctx.fillText('Setpoint', width - 115, 69);
+        }
+
+        // Draw frequency graph
+        function drawFrequencyGraph() {
+            const canvas = document.getElementById('frequencyGraph');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // No data to plot
+            if (dataHistory.length === 0) return;
+            
+            // Use pause timestamp if graph is paused, otherwise use current time
+            const now = graphPaused && pauseTimestamp ? pauseTimestamp : Date.now();
+            const timeWindowMs = graphTimeRange * 1000;
+            
+            // Filter data within time window and not in the future
+            const filteredData = dataHistory.filter(d => 
+                d.timestamp <= now && (now - d.timestamp) <= timeWindowMs
+            );
+            
+            if (filteredData.length === 0) return;
+            
+            // Calculate value range for scaling (handle negative frequencies)
+            const frequencies = filteredData.map(d => d.speed);
+            let minValue = Math.min(...frequencies);
+            let maxValue = Math.max(...frequencies);
+            
+            // Add some padding to the range
+            const range = maxValue - minValue;
+            const padding = Math.max(range * 0.1, 5); // At least 5 Hz padding
+            minValue -= padding;
+            maxValue += padding;
+            
+            // Graph margins
+            const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+            const graphWidth = width - margin.left - margin.right;
+            const graphHeight = height - margin.top - margin.bottom;
+            
+            // Helper functions to convert data to canvas coordinates
+            function timeToX(timestamp) {
+                const relativeTime = (timestamp - now) / 1000; // seconds (negative)
+                return margin.left + graphWidth + (relativeTime / graphTimeRange) * graphWidth;
+            }
+            
+            function valueToY(value) {
+                const normalized = (value - minValue) / (maxValue - minValue);
+                return margin.top + graphHeight - (normalized * graphHeight);
+            }
+            
+            // Draw axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, height - margin.bottom);
+            ctx.lineTo(width - margin.right, height - margin.bottom);
+            ctx.stroke();
+            
+            // Draw time axis labels (negative numbers, 0 at right)
+            ctx.fillStyle = '#666';
+            ctx.font = '24px sans-serif';
+            ctx.textAlign = 'center';
+            
+            const numTimeTicks = 5;
+            for (let i = 0; i <= numTimeTicks; i++) {
+                const timeOffset = -graphTimeRange * (1 - i / numTimeTicks);
+                const x = margin.left + (i / numTimeTicks) * graphWidth;
+                const y = height - margin.bottom + 20;
+                
+                // Use one decimal place for time ranges <= 2 seconds
+                const timeLabel = graphTimeRange <= 2 ? 
+                    timeOffset.toFixed(1) + 's' : 
+                    Math.round(timeOffset) + 's';
+                
+                ctx.fillText(timeLabel, x, y);
+                
+                // Draw tick
+                ctx.beginPath();
+                ctx.moveTo(x, height - margin.bottom);
+                ctx.lineTo(x, height - margin.bottom + 5);
+                ctx.stroke();
+            }
+            
+            // Draw value axis labels
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            
+            const numValueTicks = 5;
+            for (let i = 0; i <= numValueTicks; i++) {
+                const value = minValue + (maxValue - minValue) * (i / numValueTicks);
+                const y = height - margin.bottom - (i / numValueTicks) * graphHeight;
+                
+                ctx.fillText(Math.round(value), margin.left - 10, y);
+                
+                // Draw grid line
+                ctx.strokeStyle = '#e0e0e0';
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(width - margin.right, y);
+                ctx.stroke();
+                ctx.strokeStyle = '#333';
+            }
+            
+            // Draw frequency line
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            for (let i = 0; i < filteredData.length; i++) {
+                const point = filteredData[i];
+                const x = timeToX(point.timestamp);
+                const y = valueToY(point.speed);
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+            
+            // Draw legend
+            ctx.font = '24px sans-serif';
+            ctx.textAlign = 'left';
+            
+            // Frequency legend
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(width - 280, 30);
+            ctx.lineTo(width - 250, 30);
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.fillText('Speed (steps/sec)', width - 245, 34);
         }
 
         // Cleanup on page unload

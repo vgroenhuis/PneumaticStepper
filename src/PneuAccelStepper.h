@@ -20,11 +20,6 @@ class PneuAccelStepper : public PneumaticStepper {
   public:
     PneuAccelStepper(int nCylinder, bool doubleActing, bool triState = false, int approachDirection = 0, CylinderStrategy cylinderStrategy = ANY_ENGAGE, float frequency = 10, long position = 0, long setpoint = 0, int phaseNr = 0, bool running = true, float hysteresis = 0);
 
-    // Returns a two-cylinder, double-acting stepper with default strategy
-    //static PneuAccelStepper TwoCylinderAccelStepper;
-    // Returns a three-cylinder, single-acting stepper with default strategy
-    //static PneuAccelStepper ThreeCylinderAccelStepper;
-
     static PneuAccelStepper makeTwoCylinderAccelStepper() { return PneuAccelStepper(2, true); }
     static PneuAccelStepper makeThreeCylinderAccelStepper() { return PneuAccelStepper(3, false); }
 
@@ -38,8 +33,7 @@ class PneuAccelStepper : public PneumaticStepper {
     long distanceToGo();
     void printState() const;
     long getStepsToStop() const;
-    //void printSpeed();
-    //void printn();
+    float getSpeed() const { return _speed; } // in case of PneuAccelStepper this may be different from _frequency
   private:
     unsigned long computeNewSpeed(bool nIncrease);
     typedef enum
@@ -55,9 +49,6 @@ class PneuAccelStepper : public PneumaticStepper {
     /// The acceleration to use to accelerate or decelerate the motor in steps
     /// per second per second. Must be > 0
     float          _acceleration;
-
-    /// The last step time in microseconds
-    //unsigned long  _lastStepTime;
 
     /// The step counter for speed calculations
     long _n;
