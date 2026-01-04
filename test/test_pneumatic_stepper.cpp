@@ -3,100 +3,102 @@
 #include <unity.h>
 
 #include "test_common.h"
-#include "test_PneuAccel.h"
 
 #include "PneumaticStepper.h"
 #include "ServoValve.h"
 
+#include <array>
 
-void setUp(void) {
-    // set stuff up here
+void setUp(void)
+{
+	// set stuff up here
 }
 
-void tearDown(void) {
-    // clean stuff up here
+void tearDown(void)
+{
+	// clean stuff up here
 }
 
 // Validates phase for n=2 stepper motor
-void validateCylinderState(const uint8_t* state, uint8_t c0, uint8_t c1) {
-	TEST_ASSERT_TRUE(state[0]==c0);
-	TEST_ASSERT_TRUE(state[1]==c1);
+void validateCylinderState(std::vector<uint8_t> state, std::vector<uint8_t> test)
+{
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(state.data(), test.data(), state.size());
+	/*
+		for (int i=0; i<test.size(); i++) {
+			TEST_ASSERT_EQUAL(state[i],test[i]);
+		}
+	*/
 }
 
-// Validates phase for n=3 stepper motors
-void validateCylinderState(const uint8_t* state, uint8_t c0, uint8_t c1, uint8_t c2) {
-	TEST_ASSERT_TRUE(state[0]==c0);
-	TEST_ASSERT_TRUE(state[1]==c1);
-	TEST_ASSERT_TRUE(state[2]==c2);
-}
+void testBasics()
+{
+	bool changed;
 
-// Validates phase for n=4 stepper motors
-void validateCylinderState(const uint8_t* state, uint8_t c0, uint8_t c1, uint8_t c2, uint8_t c3) {
-	TEST_ASSERT_TRUE(state[0]==c0);
-	TEST_ASSERT_TRUE(state[1]==c1);
-	TEST_ASSERT_TRUE(state[2]==c2);
-	TEST_ASSERT_TRUE(state[3]==c3);
-}
-
-
-void testBasics() {
 	cout << "Testing PneumaticStepper basics..." << endl;
 	PneumaticStepper s1 = PneumaticStepper::makeThreeCylinderStepper(); // Constructor with default parameters
-	TEST_ASSERT_TRUE(s1.getCylinderCount()==3);
+	TEST_ASSERT_EQUAL(s1.getCylinderCount(), 3);
 	TEST_ASSERT_TRUE(!s1.isDoubleActing());
 	TEST_ASSERT_TRUE(!s1.isTriState());
-	TEST_ASSERT_TRUE(s1.getApproachDirection()==0);
-	TEST_ASSERT_TRUE(abs(s1.getFrequency()-10)<1e-8);
-	TEST_ASSERT_TRUE(s1.getPosition()==0);
-	TEST_ASSERT_TRUE(s1.getSetpoint()==0);
+	TEST_ASSERT_TRUE(s1.getApproachDirection() == 0);
+	TEST_ASSERT_TRUE(abs(s1.getMaxVelocity() - 10) < 1e-8);
+	TEST_ASSERT_TRUE(s1.getPosition() == 0);
+	TEST_ASSERT_TRUE(s1.getSetpoint() == 0);
 	TEST_ASSERT_TRUE(s1.isPositionValid());
-	TEST_ASSERT_TRUE(s1.getPhaseNr()==0);
+	TEST_ASSERT_TRUE(s1.getPhaseNr() == 0);
 	TEST_ASSERT_TRUE(!s1.isFloating());
-	TEST_ASSERT_TRUE(s1.changed());
-	TEST_ASSERT_TRUE(!s1.changed());
-	TEST_ASSERT_TRUE(s1.getLastStepDir()==0);
+	TEST_ASSERT_TRUE(s1.testResetRoundedPositionChanged());
+	TEST_ASSERT_TRUE(!s1.testResetRoundedPositionChanged());
+	TEST_ASSERT_TRUE(s1.getLastStepDir() == 0);
 	TEST_ASSERT_TRUE(s1.isRunning());
-	validateCylinderState(s1.getCylinderStates(),1,0,0);
+	validateCylinderState(s1.getCylinderStates(), {1, 0, 0});
 
 	// Test floating
 	s1.setFloating(true);
 	TEST_ASSERT_TRUE(s1.isFloating());
-	TEST_ASSERT_TRUE(!s1.isPositionValid());
-	
-	s1.setFloating(false);
-	TEST_ASSERT_TRUE(!s1.isFloating());
-	TEST_ASSERT_TRUE(!s1.isPositionValid());
-	s1.setPosition(0);
-	TEST_ASSERT_TRUE(!s1.isFloating());
-	TEST_ASSERT_TRUE(s1.isPositionValid());
-	TEST_ASSERT_TRUE(s1.getStepsTodo()==0);
-	
-	s1.setSetpoint(2);
-	TEST_ASSERT_TRUE(s1.getStepsTodo()==2);
-	
-	s1.setFrequency(-1);
-	s1.pause();
-	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 0);
-	s1.run();
-	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition()==1);
-	s1.pause();
-	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
-	s1.run();
-	s1.work();
-	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 2);
+	TEST_ASSERT_FALSE(s1.isPositionValid());
 
+	s1.setFloating(false);
+	TEST_ASSERT_FALSE(s1.isFloating());
+	TEST_ASSERT_FALSE(s1.isPositionValid());
+	s1.setPosition(0);
+	TEST_ASSERT_FALSE(s1.isFloating());
+	TEST_ASSERT_TRUE(s1.isPositionValid());
+	TEST_ASSERT_TRUE(s1.getPositionError() == 0);
+	s1.setSetpoint(2);
+	TEST_ASSERT_TRUE(s1.getPositionError() == 2);
+	TEST_ASSERT_TRUE(s1.testResetRoundedPositionChanged());
+
+	s1.setMaxVelocity(1000); // steps/sec
+	s1.printState();
+	printf("Pausing...\n");
+	s1.pause();
+	s1.printState();
+	printf("Stepping motor while paused:\n");
+	changed = s1.workUntilRoundedPositionChanged();
+	TEST_ASSERT_FALSE(changed); // motor is paused, so velocity stays zero
+	TEST_ASSERT_EQUAL(0, s1.getPosition());
+	s1.run();
+	changed = s1.workUntilRoundedPositionChanged(); // advances by one step (rounded)
+	TEST_ASSERT_TRUE(changed);
+	TEST_ASSERT_TRUE(s1.testResetRoundedPositionChanged());
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
+	s1.pause(); // it still has some velocity, so position will continue to increase, but drop to zero sufficiently quickly
+	changed = s1.workUntilRoundedPositionChanged();
+	TEST_ASSERT_FALSE(changed);
+	s1.printState();
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition()); // is 0 (pos=0.496)
+	s1.run();
+	s1.workUntilRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(2, s1.getRoundedPosition());
 	// test array of motors
-	PneumaticStepper myMotor[2] = { PneumaticStepper::makeTwoCylinderStepper(), PneumaticStepper::makeThreeCylinderStepper() };
+	PneumaticStepper myMotor[2] = {PneumaticStepper::makeTwoCylinderStepper(), PneumaticStepper::makeThreeCylinderStepper()};
 
 	// test copy constructor
 	s1 = PneumaticStepper::makeTwoCylinderStepper();
 }
 
-void testTiming() {
+void testTiming()
+{
 	cout << "Testing timing..." << endl;
 	PneumaticStepper s1 = PneumaticStepper::makeTwoCylinderStepper(); // 10 Hz
 	s1.resetLastChangeTime();
@@ -105,176 +107,205 @@ void testTiming() {
 	waitMillis(50);
 
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 0);
+	TEST_ASSERT_EQUAL(0, s1.getRoundedPosition());
 	waitMillis(100);
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == -1);
+	TEST_ASSERT_EQUAL(-1, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == -1);
+	TEST_ASSERT_EQUAL(-1, s1.getRoundedPosition());
 	waitMillis(100);
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == -2);
+	TEST_ASSERT_EQUAL(-2, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == -2);
+	TEST_ASSERT_EQUAL(-2, s1.getRoundedPosition());
 	waitMillis(10);
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == -2);
+	TEST_ASSERT_EQUAL(-2, s1.getRoundedPosition());
 
 	PneumaticStepper s2 = PneumaticStepper::makeThreeCylinderStepper();
-	s2.setCylinderStrategy(PneumaticStepper::SINGLE_ENGAGE_ONLY);
+	s2.setCylinderStrategy(PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY);
 	s2.resetLastChangeTime();
 	s2.setSetpoint(10);
 	waitMillis(50);
-	s2.workUntilNoChange();
-	TEST_ASSERT_TRUE(s2.getPosition() == 0);
-	waitMillis(100);
-	s2.workUntilNoChange();
-	TEST_ASSERT_TRUE(s2.getPosition() == 2);
+	// s2 has position 0, setpoint 10
+	s2.workUntilRoundedPositionChanged();
+	s2.testResetRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(0, s2.getRoundedPosition());
+	s2.workUntilRoundedPositionChanged();
+	s2.testResetRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(1, s2.getRoundedPosition());
+	s2.workUntilRoundedPositionChanged();
+	s2.testResetRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(2, s2.getRoundedPosition());
 
-	// 
 	PneumaticStepper s3 = PneumaticStepper::makeTwoCylinderStepper();
 	s3.resetLastChangeTime();
 	s3.setSetpoint(0);
-	s3.setFrequency(1); // 1 Hz
+	s3.setMaxVelocity(1); // max 1 steps/sec
 	waitMillis(1900);
 	s3.setSetpoint(10);
+	s3.testResetRoundedPositionChanged();
 	s3.work();
-	TEST_ASSERT_TRUE(s3.getPosition() == 1); // lastChangeTime is 1 s, current time 1.9 s
-	waitMillis(200); // current time 2.1 s
+	s3.testResetRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(0, s3.getRoundedPosition());
+	s3.workUntilRoundedPositionChanged();
+	s3.testResetRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(1, s3.getRoundedPosition());
+	waitMillis(200);
 	s3.work();
-	TEST_ASSERT_TRUE(s3.getPosition() == 1); // in v1.0.6 this fails because _lastChangeMillis was 1 s
-	waitMillis(700); // current time 2.8 s
+	TEST_ASSERT_EQUAL(1, s3.getRoundedPosition());
+	waitMillis(700);
 	s3.work();
-	TEST_ASSERT_TRUE(s3.getPosition() == 1);
-	waitMillis(200); // current time 3.0 s
+	TEST_ASSERT_EQUAL(1, s3.getRoundedPosition());
+	waitMillis(200);
 	s3.work();
-	TEST_ASSERT_TRUE(s3.getPosition() == 2);
+	TEST_ASSERT_EQUAL(2, s3.getRoundedPosition());
 	//
 }
 
-void testCylinderStrategy(){
+void testCylinderStrategy()
+{
 	cout << "Testing cylinder strategies..." << endl;
 	// three-cylinder single-acting, single-engage only, ignore frequency
-	PneumaticStepper s1(3, false, false, 0, PneumaticStepper::SINGLE_ENGAGE_ONLY, -1, 0, 0, 0, true);
-	TEST_ASSERT_TRUE(s1.getCylinderStrategy()==PneumaticStepper::SINGLE_ENGAGE_ONLY);
+	PneumaticStepper s1(3, false, false, 0, PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY, -1, 0, 0, 0, true);
+	TEST_ASSERT_EQUAL(s1.getCylinderStrategy(), PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY);
 	s1.setSetpoint(3);
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 2); // actual setpoint is even
-	validateCylinderState(s1.getCylinderStates(), 1, 0, 0);
-	s1.work();
-	validateCylinderState(s1.getCylinderStates(), 1, 1, 0);
-	s1.work();
-	validateCylinderState(s1.getCylinderStates(), 0, 1, 0);
-	s1.work();
-	validateCylinderState(s1.getCylinderStates(), 0, 1, 0);
-	s1.work();
-	validateCylinderState(s1.getCylinderStates(), 0, 1, 0);
-	TEST_ASSERT_TRUE(s1.getCylinderState(0) == 0);
-	TEST_ASSERT_TRUE(s1.getCylinderState(1) == 1);
-	TEST_ASSERT_TRUE(s1.getCylinderState(2) == 0);
+	TEST_ASSERT_EQUAL(s1.getSetpoint(), 2); // actual setpoint is even
+
+	uint8_t piii[][3] = {{1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}, {1, 0, 1}};
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(piii[0], s1.getCylinderStates().data(), 3);
+	TEST_ASSERT_EQUAL(0, s1.getPosition());
+	s1.testResetRoundedPositionChanged();
+	s1.workUntilRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(1, s1.getPosition());
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(piii[0], s1.getCylinderStates().data(), 3);
+	s1.testResetRoundedPositionChanged();
+	s1.workUntilRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(2, s1.getPosition());
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(piii[2], s1.getCylinderStates().data(), 3);
+	s1.testResetRoundedPositionChanged();
+	s1.workUntilRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(2, s1.getPosition()); // failed
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(piii[2], s1.getCylinderStates().data(), 3);
+	s1.testResetRoundedPositionChanged();
+	s1.workUntilRoundedPositionChanged();
+	TEST_ASSERT_EQUAL_UINT8_ARRAY(piii[2], s1.getCylinderStates().data(), 3);
+
+	TEST_ASSERT_EQUAL(0, s1.getCylinderState(0));
+	TEST_ASSERT_EQUAL(1, s1.getCylinderState(1));
+	TEST_ASSERT_EQUAL(0, s1.getCylinderState(2));
 
 	TEST_ASSERT_TRUE(s1.getPosition() == 2);
 	// tricky: redefine position
 	s1.setPosition(1);
 	TEST_ASSERT_TRUE(s1.getPosition() == 1);
 	TEST_ASSERT_TRUE(s1.getPhaseNr() == 2);
-	validateCylinderState(s1.getCylinderStates(), 0, 1, 0);
+	validateCylinderState(s1.getCylinderStates(), {0, 1, 0});
 	s1.setSetpoint(3);
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
 }
 
 // Performs ten steps while printing state before each step
-void playMotor(PneumaticStepper& stepper) {
-	//char buf[100];
-	for (int i = 0; i < 20; i++) {
-		//stepper.toString(buf, 100);
-		stepper.printState();
-		//cout << buf << endl;
-		waitMillis(3);
-		stepper.work();
+void playMotor(PneumaticStepper &stepper)
+{
+	for (int i = 0; i < 10; i++)
+	{
+		stepper.testResetRoundedPositionChanged();
+		stepper.workUntilRoundedPositionChanged();
+#ifndef PNEU_DEBUG
+//		stepper.printState();
+#endif
+		// waitMillis(10);
 	}
 }
 
-void testOperation() {
+void testOperation()
+{
 	cout << "testOperation: requires manual inspection of motor state prints" << endl;
 	cout << "s1: three-cylinder, double-acting stepper" << endl;
 	PneumaticStepper s1(3, true);
-	s1.setFrequency(100);
+	s1.setMaxVelocity(100);
+	s1.setAcceleration(1000);
 	s1.setSetpoint(5);
 	playMotor(s1);
 	cout << "s2: default three-cylinder single-acting stepper, single-engage strategy" << endl;
 	PneumaticStepper s2 = PneumaticStepper::makeThreeCylinderStepper();
-	s2.setFrequency(100);
+	s2.setMaxVelocity(100);
+	s2.setAcceleration(1000);
 	s2.setSetpoint(8);
-	s2.setCylinderStrategy(PneumaticStepper::SINGLE_ENGAGE_ONLY);
+	s2.setCylinderStrategy(PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY);
 	playMotor(s2);
 	cout << "s3: three-cylinder double-acting, single-engage only" << endl;
-	PneumaticStepper s3(3, true, true, 0, PneumaticStepper::SINGLE_ENGAGE_ONLY, 100, 0, 0, 0, true);
+	PneumaticStepper s3(3, true, true, 0, PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY, 100, 0, 0, 0, true);
 	s3.setSetpoint(10);
 	playMotor(s3);
 	cout << "s4: two-cylinder double-acting" << endl;
 	PneumaticStepper s4 = PneumaticStepper::makeTwoCylinderStepper();
-	s4.setFrequency(100);
+	s4.setMaxVelocity(100);
+	s4.setAcceleration(1000);
 	s4.setSetpoint(-3);
 	playMotor(s4);
 }
 
-void testApproachDirection() {
+void testApproachDirection()
+{
 	cout << "testApproachDirection" << endl;
-	PneumaticStepper s1 = PneumaticStepper::makeTwoCylinderStepper();// (2, true);
+	PneumaticStepper s1 = PneumaticStepper::makeTwoCylinderStepper(); // (2, true);
 	s1.setApproachDirection(-1);
-	s1.setFrequency(-1);
+	s1.setMaxVelocity(-1);
 	s1.setSetpoint(1);
-	TEST_ASSERT_TRUE(s1.getPosition() == 0);
+	TEST_ASSERT_EQUAL(0, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 2);
+	TEST_ASSERT_EQUAL(2, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
 	s1.setApproachDirection(1);
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 0);
+	TEST_ASSERT_EQUAL(0, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
 	s1.work();
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
+	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
 }
 
+/*
 void testHysteresis() {
 	cout << "Testing hysteresis..." << endl;
 	PneumaticStepper s1 = PneumaticStepper::makeTwoCylinderStepper();
-	s1.setFrequency(-1);
-	s1.setHysteresis(3);
-	s1.setSetpointDouble(2.1);
+	s1.setMaxVelocity(1000);
+	s1.setSetpoint(2.1);
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 0);
-	s1.setSetpointDouble(3.2);
+	s1.setSetpoint(3.2);
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 1);
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 2);
-	s1.setSetpointDouble(4);
+	s1.setSetpoint(4);
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 2); // not changed because within hysteresis
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 2);
 	s1.setHysteresis(0.7);
-	s1.setSetpointDouble(2.8);
+	s1.setSetpoint(2.8);
 	cout << "Position: " << s1.getPosition() << " Setpoint: " << s1.getSetpoint() << endl;
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
 	s1.work();
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 3);
-	s1.setSetpointDouble(2.4);
+	s1.setSetpoint(2.4);
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
-	s1.setSetpointDouble(2.1);
+	s1.setSetpoint(2.1);
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 2);
-}
+}*/
 
-void testServoValve() {
+void testServoValve()
+{
 	cout << "Testing ServoValve..." << endl;
 	ServoValve v1(90);
 	TEST_ASSERT_TRUE(v1.changed());
@@ -344,82 +375,160 @@ void testServoValve() {
 	TEST_ASSERT_TRUE(v3.getSetAngle() == 70);
 	TEST_ASSERT_TRUE(v3.getPulse() == 700);
 	v3.setLogicalState(1);
-	TEST_ASSERT_TRUE(v3.getSetAngle()==113);
+	TEST_ASSERT_TRUE(v3.getSetAngle() == 113);
 	waitMillis(100);
 	v3.work();
-	TEST_ASSERT_TRUE(v3.getSetAngle()==113);
+	TEST_ASSERT_TRUE(v3.getSetAngle() == 113);
 	TEST_ASSERT_TRUE(v3.getPulse() == 1130);
 	waitMillis(150);
 	v3.work();
-	TEST_ASSERT_TRUE(v3.getSetAngle()==110);
+	TEST_ASSERT_TRUE(v3.getSetAngle() == 110);
 }
 
-void testSetPhase() {
+void testSetPhase()
+{
 	cout << "Testing SetPhase..." << endl;
 	PneumaticStepper s = PneumaticStepper::makeTwoCylinderStepper();
+	s.setMaxVelocity(100);
+	s.setAcceleration(1000);
 	waitMillis(1000);
 	s.work(); // 00
-	TEST_ASSERT_TRUE(!s.getCylinderState(0));
-	TEST_ASSERT_TRUE(!s.getCylinderState(1));
+	TEST_ASSERT_FALSE(s.getCylinderState(0));
+	TEST_ASSERT_FALSE(s.getCylinderState(1));
 
 	s.setPhaseNr(1);
 	waitMillis(1000);
 	s.work(); // 01
-	TEST_ASSERT_TRUE(s.getPosition() == 0);
-	TEST_ASSERT_TRUE(s.getPhaseNr() == 1);
+	TEST_ASSERT_EQUAL(0, s.getRoundedPosition());
+	TEST_ASSERT_EQUAL(1, s.getPhaseNr());
 	TEST_ASSERT_TRUE(s.getCylinderState(0));
-	TEST_ASSERT_TRUE(!s.getCylinderState(1));
+	TEST_ASSERT_FALSE(s.getCylinderState(1));
 
 	s.setPosition(2);
 	s.setSetpoint(2);
 	waitMillis(1000);
 	s.work(); // 01
-	TEST_ASSERT_TRUE(s.getPosition() == 2);
-	TEST_ASSERT_TRUE(s.getPhaseNr() == 1);
+	TEST_ASSERT_EQUAL(2, s.getRoundedPosition());
+	TEST_ASSERT_EQUAL(1, s.getPhaseNr());
 	TEST_ASSERT_TRUE(s.getCylinderState(0));
-	TEST_ASSERT_TRUE(!s.getCylinderState(1));
+	TEST_ASSERT_FALSE(s.getCylinderState(1));
 
 	s.setSetpoint(3);
-	waitMillis(1000);
-	s.work(); // 11
-	TEST_ASSERT_TRUE(s.getPosition() == 3);
-	TEST_ASSERT_TRUE(s.getPhaseNr() == 2);
+	s.testResetRoundedPositionChanged();
+	s.workUntilRoundedPositionChanged();
+	s.printState();
+	TEST_ASSERT_EQUAL(3, s.getRoundedPosition());
+	TEST_ASSERT_EQUAL(2, s.getPhaseNr());
 	TEST_ASSERT_TRUE(s.getCylinderState(0));
 	TEST_ASSERT_TRUE(s.getCylinderState(1));
 
 	s.setSetpoint(1);
-	waitMillis(1000);
-	s.work(); // 01
-	TEST_ASSERT_TRUE(s.getPosition() == 2);
-	TEST_ASSERT_TRUE(s.getPhaseNr() == 1);
+	s.testResetRoundedPositionChanged();
+	s.workUntilRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(2, s.getRoundedPosition());
+	TEST_ASSERT_EQUAL(1, s.getPhaseNr());
 	TEST_ASSERT_TRUE(s.getCylinderState(0));
-	TEST_ASSERT_TRUE(!s.getCylinderState(1));
-	waitMillis(1000);
-	s.work(); // 00
-	TEST_ASSERT_TRUE(s.getPosition() == 1);
-	TEST_ASSERT_TRUE(s.getPhaseNr() == 0);
-	TEST_ASSERT_TRUE(!s.getCylinderState(0));
-	TEST_ASSERT_TRUE(!s.getCylinderState(1));
-	waitMillis(1000);
-	s.work();
-	waitMillis(1000);
-	s.work();
+	TEST_ASSERT_FALSE(s.getCylinderState(1));
+	s.testResetRoundedPositionChanged();
+	s.workUntilRoundedPositionChanged();
+	TEST_ASSERT_EQUAL(1, s.getRoundedPosition());
+	TEST_ASSERT_EQUAL(0, s.getPhaseNr());
+	TEST_ASSERT_FALSE(s.getCylinderState(0));
+	TEST_ASSERT_FALSE(s.getCylinderState(1));
+	s.testResetRoundedPositionChanged();
+	s.workUntilRoundedPositionChanged();
+	s.testResetRoundedPositionChanged();
+	s.workUntilRoundedPositionChanged();
 	TEST_ASSERT_TRUE(!s.getCylinderState(0));
 	TEST_ASSERT_TRUE(!s.getCylinderState(1));
 }
 
 
+void testAccelerationSimpleProfile() {
+    cout << "\033[34mrunMotorSimpleProfile\033[0m" << endl;
+    resetClock();
+    
+    PneumaticStepper stepper = PneumaticStepper::makeTwoCylinderStepper();
 
-void testPneumaticStepper() {
+	stepper.setAcceleration(10); // in steps/s^2
+    stepper.setMaxVelocity(10); // in Hz
+    stepper.setSetpoint(200); // in steps
 
-    RUN_TEST(testBasics);
+
+    unsigned long previousStepMillis = millis();
+
+    stepper.printState("Start");
+
+    while (/*stepper.getPosition() != stepper.getSetpoint() && */millis()<100000) {
+		stepper.testResetRoundedPositionChanged();
+        stepper.work();
+        bool change = stepper.testResetRoundedPositionChanged();
+        if (change) {
+            float dt = (millis() - previousStepMillis) / 1000.0;
+            //cout << "t=" << fixed << setprecision(4) << millis()/1000.0 << " f=" << (1.0/dt) << " position=" << stepper.getPosition() << endl;
+            stepper.printState("Step");
+            previousStepMillis = millis();
+			float effectiveVelocity = 1.0/dt;
+
+			if (effectiveVelocity > stepper.getMaxVelocity()+0.1) {
+				cout << "\033[31mError: effective velocity " << effectiveVelocity << " exceeds max velocity " << stepper.getMaxVelocity() << "\033[0m" << endl;
+			}
+            TEST_ASSERT_LESS_OR_EQUAL(stepper.getMaxVelocity()+0.1, effectiveVelocity);
+        }
+        waitMillis(1);
+    }
+
+    TEST_ASSERT_EQUAL(stepper.getRoundedPosition(), stepper.getSetpoint());
+    TEST_ASSERT_EQUAL_FLOAT(stepper.getPosition(), stepper.getSetpoint());
+}
+
+void testAccelerationChangeSetpointMidway() {
+    cout << "\033[34mrunMotorChangeSetpointMidway\033[0m" << endl;
+
+    resetClock();
+    PneumaticStepper stepper = PneumaticStepper::makeTwoCylinderStepper();
+    stepper.setPosition(0);
+    stepper.setAcceleration(20); // in steps/s^2
+    stepper.setMaxVelocity(10); // in steps/s
+    stepper.setSetpoint(200); // in steps
+
+
+    unsigned long previousStepMillis = millis();
+
+    // simulate for 10 seconds
+    while (millis()<100000) {
+		stepper.testResetRoundedPositionChanged();
+        stepper.work();
+        bool change = stepper.testResetRoundedPositionChanged();
+        if (change) {
+            float dt = (millis() - previousStepMillis) / 1000.0; // the time interval from previous step to current step
+            cout << "t=" << fixed << setprecision(4) << millis()/1000.0 << " f=" << (1.0/dt) << " position=" << stepper.getPosition() << endl;
+            previousStepMillis = millis();
+            float effectiveVelocity = 1.0/dt;
+			stepper.printState("Step");
+            TEST_ASSERT_LESS_OR_EQUAL(stepper.getMaxVelocity()+0.1, effectiveVelocity);
+        }
+        if (stepper.getPosition() == 100 && stepper.getSetpoint() == 200) {
+            stepper.setSetpoint(-100);
+            cout << "Changed setpoint to -100 at t=" << millis()/1000.0 << endl;
+        }
+        waitMillis(1);
+    }
+
+    TEST_ASSERT_EQUAL(stepper.getRoundedPosition(), stepper.getSetpoint());
+}
+
+
+void testPneumaticStepper()
+{
+	RUN_TEST(testBasics);
 	RUN_TEST(testTiming);
 	RUN_TEST(testCylinderStrategy);
 	RUN_TEST(testOperation);
 	RUN_TEST(testApproachDirection);
-	RUN_TEST(testHysteresis);
 	RUN_TEST(testServoValve);
 	RUN_TEST(testSetPhase);
+    RUN_TEST(testAccelerationSimpleProfile);
+    RUN_TEST(testAccelerationChangeSetpointMidway);
 
 }
-

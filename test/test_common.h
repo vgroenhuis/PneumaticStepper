@@ -11,6 +11,7 @@ extern unsigned long millis();
 extern unsigned long micros();
 extern void resetClock();
 
+extern void delay(unsigned long d);
 extern void waitMillis(unsigned long d);
 
 extern long map(long x, long in_min, long in_max, long out_min, long out_max);

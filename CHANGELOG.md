@@ -1,6 +1,14 @@
 # Changelog
 PneumaticStepper library
 
+## [2.0.0] - 2026-01-04
+Major overhaul of PneumaticStepper library.
+PneuAccelStepper has been removed and its functionality integrated in PneumaticStepper.
+Algorithms have been rewritten, resulting in better behaviour when parameters (velocity, setpoint) change during motion.
+Frequency has been renamed to velocity.
+Several other breaking changes. Test scrips have been adapted accordingly.
+Example "WiFiDashboardPneumaticStepper" added.
+
 ## [1.1.0] - 2025-12-30
 Added fields in library.json
 Added test runners

@@ -13,7 +13,7 @@
 PneumaticStepper motor = PneumaticStepper::makeTwoCylinderStepper(); // This variable models a two-cylinder stepper motor and keeps track of position, stepping frequency and other attributes
 
 void setup() {
-  motor.setFrequency(2); // Set stepping frequency to two steps per second
+  motor.setMaxVelocity(2); // Set stepping frequency to two steps per second
   motor.setSetpoint(100); // Set setpoint position to +100 steps
 
   pinMode(2,OUTPUT); // Use Arduino digital pins 2 and 3 for controlling the valves

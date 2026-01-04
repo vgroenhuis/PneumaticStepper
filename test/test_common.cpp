@@ -16,6 +16,11 @@ void resetClock() {
 	_micros = 0;
 }
 
+void delay(unsigned long d) {
+	_millis += d;
+	_micros += 1000 * d;
+}
+
 void waitMillis(unsigned long d) {
 	_millis += d;
 	_micros += 1000 * d;

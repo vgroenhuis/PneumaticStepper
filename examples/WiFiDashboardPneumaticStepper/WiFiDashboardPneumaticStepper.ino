@@ -2,8 +2,8 @@
  * Pneumatic stepper control (with acceleration control) using WiFi dashboard
  */
 #include "RoamingWiFiManager.h"
-#include "PneuAccelStepper.h"
-#include "AccelMotorDashboard.html"
+#include "PneumaticStepper.h"
+#include "MotorDashboard.html"
 #include <ArduinoJson.h>
 
 #ifndef WIFI_SSID
@@ -23,7 +23,7 @@ String wifiPassword = WIFI_PASSWORD;
 
 
 RoamingWiFiManager wiFiManager;
-PneuAccelStepper motor = PneuAccelStepper::makeTwoCylinderAccelStepper();
+PneumaticStepper motor = PneumaticStepper::makeTwoCylinderStepper();
 AsyncWebSocket ws("/ws");
 
 
@@ -51,15 +51,15 @@ void handleWebSocketCommand(String command) {
         Serial.printf("Setpoint adjusted by %ld steps to: %ld\n", stepDelta, newSetpoint);
     }
     else if (action == "stop") {
-        motor.setSetpoint(motor.getPosition());
+        motor.setSetpoint(motor.getRoundedPosition());
     }
     else if (action == "home") {
         motor.setSetpoint(0);
     }
     else if (action == "setFrequency") {
-        float frequency = doc["value"];
-        motor.setFrequency(frequency);
-        Serial.printf("Frequency changed to: %.1f Hz\n", frequency);
+        float maxVelocity = doc["value"];
+        motor.setMaxVelocity(maxVelocity);
+        Serial.printf("Max velocity changed to: %.1f Hz\n", maxVelocity);
     }
     else if (action == "setAcceleration") {
         float acceleration = doc["value"];
@@ -73,12 +73,12 @@ void sendMotorStatus() {
 
     JsonDocument doc;
     doc["timestamp"] = millis();
-    doc["position"] = motor.getPosition();
+    doc["position"] = motor.getRoundedPosition();
     doc["setpoint"] = motor.getSetpoint();
     doc["phase"] = motor.getPhaseNr();
     doc["running"] = motor.isRunning();
     doc["positionValid"] = motor.isPositionValid();
-    doc["speed"] = motor.getSpeed(); // in steps/sec, with sign
+    doc["velocity"] = motor.getVelocity(); // in steps/sec, with sign
     
     // Add cylinder states
     JsonArray cylinders = doc["cylinders"].to<JsonArray>();
@@ -138,7 +138,7 @@ void checkSendMotorStatus() {
     // - Otherwise send every 200 ms (five times per second)
     static unsigned long lastSend = 0;
     static long lastPosition = 0;
-    long currentPosition = motor.getPosition();
+    long currentPosition = motor.getRoundedPosition();
     bool positionChanged = (currentPosition != lastPosition);
     unsigned long timeSinceLastSend = millis() - lastSend;
     

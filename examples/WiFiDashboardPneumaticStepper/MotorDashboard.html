@@ -444,10 +444,10 @@ R"rawliteral(<!DOCTYPE html>
             <!-- Frequency Control Card -->
             <div class="card">
                 <div class="card-title">
-                    <span>⏱️</span> Stepping Frequency
+                    <span>⏱️</span> Velocity
                 </div>
                 <div class="frequency-current">
-                    <span id="frequencyDisplay">10</span> Hz
+                    <span id="frequencyDisplay">10</span> steps/sec
                 </div>
                 <div class="frequency-slider">
                     <input type="range" id="frequencySlider" min="0" max="100" value="50" oninput="updateFrequency(this.value)">
@@ -552,7 +552,7 @@ R"rawliteral(<!DOCTYPE html>
         <div style="margin-top: 20px;">
             <div class="card">
                 <div class="card-title">
-                    <span>📈</span> Speed history
+                    <span>📈</span> Velocity history
                 </div>
                 <canvas id="frequencyGraph" width="1600" height="500" style="width: 100%; border: 1px solid #ddd; border-radius: 4px; background: white;"></canvas>
             </div>
@@ -579,7 +579,7 @@ R"rawliteral(<!DOCTYPE html>
             positionValid: true,
             phase: 0,
             timestamp: undefined,
-            speed: 0
+            velocity: 0
         };
 
         // Initialize WebSocket connection
@@ -630,7 +630,7 @@ R"rawliteral(<!DOCTYPE html>
                     motorData.positionValid = data.positionValid;
                     motorData.phase = data.phase;
                     motorData.timestamp = data.timestamp;
-                    motorData.speed = data.speed || 0;
+                    motorData.velocity = data.velocity || 0;
                     
                     console.log('Received data:', data);
                     console.log('Cylinders:', motorData.cylinders);
@@ -687,7 +687,7 @@ R"rawliteral(<!DOCTYPE html>
                 timestamp: timestamp,
                 position: motorData.position,
                 setpoint: motorData.setpoint,
-                speed: motorData.speed
+                velocity: motorData.velocity
             });
             
             // Keep only the most recent 6000 data points
@@ -1059,7 +1059,7 @@ R"rawliteral(<!DOCTYPE html>
             if (filteredData.length === 0) return;
             
             // Calculate value range for scaling (handle negative frequencies)
-            const frequencies = filteredData.map(d => d.speed);
+            const frequencies = filteredData.map(d => d.velocity);
             let minValue = Math.min(...frequencies);
             let maxValue = Math.max(...frequencies);
             
@@ -1147,7 +1147,7 @@ R"rawliteral(<!DOCTYPE html>
             for (let i = 0; i < filteredData.length; i++) {
                 const point = filteredData[i];
                 const x = timeToX(point.timestamp);
-                const y = valueToY(point.speed);
+                const y = valueToY(point.velocity);
                 
                 if (i === 0) {
                     ctx.moveTo(x, y);
@@ -1169,7 +1169,7 @@ R"rawliteral(<!DOCTYPE html>
             ctx.lineTo(width - 250, 30);
             ctx.stroke();
             ctx.fillStyle = '#333';
-            ctx.fillText('Speed (steps/sec)', width - 245, 34);
+            ctx.fillText('Velocity (steps/sec)', width - 245, 34);
         }
 
         // Cleanup on page unload
