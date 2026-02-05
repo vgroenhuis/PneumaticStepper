@@ -16,7 +16,7 @@ void setup()
 {
     motor.setMaxVelocity(10);   // Set stepping frequency to ten steps per second
     motor.setAcceleration(2.0); // Acceleration: 2 Hz/sec, so needs five seconds to climb to 10 Hz
-    motor.setSetpoint(100);     // Set setpoint position to +100 steps
+    motor.setSetpoint(100);     // Set setpointPosition position to +100 steps
 
     pinMode(2, OUTPUT); // Use controller's digital pins 2 and 3 for controlling the valves
     pinMode(3, OUTPUT);

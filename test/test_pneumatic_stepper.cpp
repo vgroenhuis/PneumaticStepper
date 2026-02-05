@@ -36,19 +36,19 @@ void testBasics()
 
 	cout << "Testing PneumaticStepper basics..." << endl;
 	PneumaticStepper s1 = PneumaticStepper::makeThreeCylinderStepper(); // Constructor with default parameters
-	TEST_ASSERT_EQUAL(s1.getCylinderCount(), 3);
+	TEST_ASSERT_EQUAL(3, s1.getCylinderCount());
 	TEST_ASSERT_TRUE(!s1.isDoubleActing());
 	TEST_ASSERT_TRUE(!s1.isTriState());
-	TEST_ASSERT_TRUE(s1.getApproachDirection() == 0);
-	TEST_ASSERT_TRUE(abs(s1.getMaxVelocity() - 10) < 1e-8);
-	TEST_ASSERT_TRUE(s1.getPosition() == 0);
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 0);
+	TEST_ASSERT_EQUAL(0, s1.getApproachDirection());
+	TEST_ASSERT_EQUAL_FLOAT(0, abs(s1.getMaxVelocity() - 10));
+	TEST_ASSERT_EQUAL(0, s1.getPosition());
+	TEST_ASSERT_EQUAL(0, s1.getSetpointPosition());
 	TEST_ASSERT_TRUE(s1.isPositionValid());
-	TEST_ASSERT_TRUE(s1.getPhaseNr() == 0);
+	TEST_ASSERT_EQUAL(0, s1.getPhaseNr());
 	TEST_ASSERT_TRUE(!s1.isFloating());
 	TEST_ASSERT_TRUE(s1.testResetRoundedPositionChanged());
 	TEST_ASSERT_TRUE(!s1.testResetRoundedPositionChanged());
-	TEST_ASSERT_TRUE(s1.getLastStepDir() == 0);
+	TEST_ASSERT_EQUAL(0, s1.getLastStepDir());
 	TEST_ASSERT_TRUE(s1.isRunning());
 	validateCylinderState(s1.getCylinderStates(), {1, 0, 0});
 
@@ -64,7 +64,7 @@ void testBasics()
 	TEST_ASSERT_FALSE(s1.isFloating());
 	TEST_ASSERT_TRUE(s1.isPositionValid());
 	TEST_ASSERT_TRUE(s1.getPositionError() == 0);
-	s1.setSetpoint(2);
+	s1.setSetpointPosition(2);
 	TEST_ASSERT_TRUE(s1.getPositionError() == 2);
 	TEST_ASSERT_TRUE(s1.testResetRoundedPositionChanged());
 
@@ -102,7 +102,7 @@ void testTiming()
 	cout << "Testing timing..." << endl;
 	PneumaticStepper s1 = PneumaticStepper::makeTwoCylinderStepper(); // 10 Hz
 	s1.resetLastChangeTime();
-	s1.setSetpoint(-10);
+	s1.setSetpointPosition(-10);
 	s1.printState();
 	waitMillis(50);
 
@@ -125,7 +125,7 @@ void testTiming()
 	PneumaticStepper s2 = PneumaticStepper::makeThreeCylinderStepper();
 	s2.setCylinderStrategy(PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY);
 	s2.resetLastChangeTime();
-	s2.setSetpoint(10);
+	s2.setSetpointPosition(10);
 	waitMillis(50);
 	// s2 has position 0, setpoint 10
 	s2.workUntilRoundedPositionChanged();
@@ -140,10 +140,10 @@ void testTiming()
 
 	PneumaticStepper s3 = PneumaticStepper::makeTwoCylinderStepper();
 	s3.resetLastChangeTime();
-	s3.setSetpoint(0);
+	s3.setSetpointPosition(0);
 	s3.setMaxVelocity(1); // max 1 steps/sec
 	waitMillis(1900);
-	s3.setSetpoint(10);
+	s3.setSetpointPosition(10);
 	s3.testResetRoundedPositionChanged();
 	s3.work();
 	s3.testResetRoundedPositionChanged();
@@ -169,8 +169,8 @@ void testCylinderStrategy()
 	// three-cylinder single-acting, single-engage only, ignore frequency
 	PneumaticStepper s1(3, false, false, 0, PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY, -1, 0, 0, 0, true);
 	TEST_ASSERT_EQUAL(s1.getCylinderStrategy(), PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY);
-	s1.setSetpoint(3);
-	TEST_ASSERT_EQUAL(s1.getSetpoint(), 2); // actual setpoint is even
+	s1.setSetpointPosition(3);
+	TEST_ASSERT_EQUAL(s1.getSetpointPosition(), 2); // actual setpoint is even
 
 	uint8_t piii[][3] = {{1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}, {1, 0, 1}};
 	TEST_ASSERT_EQUAL_UINT8_ARRAY(piii[0], s1.getCylinderStates().data(), 3);
@@ -198,11 +198,11 @@ void testCylinderStrategy()
 	TEST_ASSERT_TRUE(s1.getPosition() == 2);
 	// tricky: redefine position
 	s1.setPosition(1);
-	TEST_ASSERT_TRUE(s1.getPosition() == 1);
-	TEST_ASSERT_TRUE(s1.getPhaseNr() == 2);
+	TEST_ASSERT_EQUAL(1, s1.getPosition());
+	TEST_ASSERT_EQUAL(2, s1.getPhaseNr());
 	validateCylinderState(s1.getCylinderStates(), {0, 1, 0});
-	s1.setSetpoint(3);
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
+	s1.setSetpointPosition(3);
+	TEST_ASSERT_EQUAL(3, s1.getSetpointPosition());
 }
 
 // Performs ten steps while printing state before each step
@@ -226,24 +226,24 @@ void testOperation()
 	PneumaticStepper s1(3, true);
 	s1.setMaxVelocity(100);
 	s1.setAcceleration(1000);
-	s1.setSetpoint(5);
+	s1.setSetpointPosition(5);
 	playMotor(s1);
 	cout << "s2: default three-cylinder single-acting stepper, single-engage strategy" << endl;
 	PneumaticStepper s2 = PneumaticStepper::makeThreeCylinderStepper();
 	s2.setMaxVelocity(100);
 	s2.setAcceleration(1000);
-	s2.setSetpoint(8);
+	s2.setSetpointPosition(8);
 	s2.setCylinderStrategy(PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY);
 	playMotor(s2);
 	cout << "s3: three-cylinder double-acting, single-engage only" << endl;
 	PneumaticStepper s3(3, true, true, 0, PneumaticStepper::CylinderStrategy::SINGLE_ENGAGE_ONLY, 100, 0, 0, 0, true);
-	s3.setSetpoint(10);
+	s3.setSetpointPosition(10);
 	playMotor(s3);
 	cout << "s4: two-cylinder double-acting" << endl;
 	PneumaticStepper s4 = PneumaticStepper::makeTwoCylinderStepper();
 	s4.setMaxVelocity(100);
 	s4.setAcceleration(1000);
-	s4.setSetpoint(-3);
+	s4.setSetpointPosition(-3);
 	playMotor(s4);
 }
 
@@ -253,7 +253,7 @@ void testApproachDirection()
 	PneumaticStepper s1 = PneumaticStepper::makeTwoCylinderStepper(); // (2, true);
 	s1.setApproachDirection(-1);
 	s1.setMaxVelocity(-1);
-	s1.setSetpoint(1);
+	s1.setSetpointPosition(1);
 	TEST_ASSERT_EQUAL(0, s1.getRoundedPosition());
 	s1.work();
 	TEST_ASSERT_EQUAL(1, s1.getRoundedPosition());
@@ -279,29 +279,29 @@ void testHysteresis() {
 	cout << "Testing hysteresis..." << endl;
 	PneumaticStepper s1 = PneumaticStepper::makeTwoCylinderStepper();
 	s1.setMaxVelocity(1000);
-	s1.setSetpoint(2.1);
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 0);
-	s1.setSetpoint(3.2);
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
+	s1.setSetpointPosition(2.1);
+	TEST_ASSERT_TRUE(s1.getSetpointPosition() == 0);
+	s1.setSetpointPosition(3.2);
+	TEST_ASSERT_TRUE(s1.getSetpointPosition() == 3);
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 1);
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 2);
-	s1.setSetpoint(4);
+	s1.setSetpointPosition(4);
 	TEST_ASSERT_TRUE(s1.getSetpoint() == 2); // not changed because within hysteresis
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 2);
 	s1.setHysteresis(0.7);
-	s1.setSetpoint(2.8);
-	cout << "Position: " << s1.getPosition() << " Setpoint: " << s1.getSetpoint() << endl;
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
+	s1.setSetpointPosition(2.8);
+	cout << "Position: " << s1.getPosition() << " Setpoint: " << s1.getSetpointPosition() << endl;
+	TEST_ASSERT_TRUE(s1.getSetpointPosition() == 3);
 	s1.work();
 	s1.work();
 	TEST_ASSERT_TRUE(s1.getPosition() == 3);
-	s1.setSetpoint(2.4);
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 3);
-	s1.setSetpoint(2.1);
-	TEST_ASSERT_TRUE(s1.getSetpoint() == 2);
+	s1.setSetpointPosition(2.4);
+	TEST_ASSERT_TRUE(s1.getSetpointPosition() == 3);
+	s1.setSetpointPosition(2.1);
+	TEST_ASSERT_TRUE(s1.getSetpointPosition() == 2);
 }*/
 
 void testServoValve()
@@ -405,7 +405,7 @@ void testSetPhase()
 	TEST_ASSERT_FALSE(s.getCylinderState(1));
 
 	s.setPosition(2);
-	s.setSetpoint(2);
+	s.setSetpointPosition(2);
 	waitMillis(1000);
 	s.work(); // 01
 	TEST_ASSERT_EQUAL(2, s.getRoundedPosition());
@@ -413,7 +413,7 @@ void testSetPhase()
 	TEST_ASSERT_TRUE(s.getCylinderState(0));
 	TEST_ASSERT_FALSE(s.getCylinderState(1));
 
-	s.setSetpoint(3);
+	s.setSetpointPosition(3);
 	s.testResetRoundedPositionChanged();
 	s.workUntilRoundedPositionChanged();
 	s.printState();
@@ -422,7 +422,7 @@ void testSetPhase()
 	TEST_ASSERT_TRUE(s.getCylinderState(0));
 	TEST_ASSERT_TRUE(s.getCylinderState(1));
 
-	s.setSetpoint(1);
+	s.setSetpointPosition(1);
 	s.testResetRoundedPositionChanged();
 	s.workUntilRoundedPositionChanged();
 	TEST_ASSERT_EQUAL(2, s.getRoundedPosition());
@@ -452,14 +452,14 @@ void testAccelerationSimpleProfile() {
 
 	stepper.setAcceleration(10); // in steps/s^2
     stepper.setMaxVelocity(10); // in Hz
-    stepper.setSetpoint(200); // in steps
+    stepper.setSetpointPosition(200); // in steps
 
 
     unsigned long previousStepMillis = millis();
 
     stepper.printState("Start");
 
-    while (/*stepper.getPosition() != stepper.getSetpoint() && */millis()<100000) {
+    while (/*stepper.getPosition() != stepper.getSetpointPosition() && */millis()<100000) {
 		stepper.testResetRoundedPositionChanged();
         stepper.work();
         bool change = stepper.testResetRoundedPositionChanged();
@@ -478,8 +478,8 @@ void testAccelerationSimpleProfile() {
         waitMillis(1);
     }
 
-    TEST_ASSERT_EQUAL(stepper.getRoundedPosition(), stepper.getSetpoint());
-    TEST_ASSERT_EQUAL_FLOAT(stepper.getPosition(), stepper.getSetpoint());
+    TEST_ASSERT_EQUAL(stepper.getRoundedPosition(), stepper.getSetpointPosition());
+    TEST_ASSERT_EQUAL_FLOAT(stepper.getPosition(), stepper.getSetpointPosition());
 }
 
 void testAccelerationChangeSetpointMidway() {
@@ -490,7 +490,7 @@ void testAccelerationChangeSetpointMidway() {
     stepper.setPosition(0);
     stepper.setAcceleration(20); // in steps/s^2
     stepper.setMaxVelocity(10); // in steps/s
-    stepper.setSetpoint(200); // in steps
+    stepper.setSetpointPosition(200); // in steps
 
 
     unsigned long previousStepMillis = millis();
@@ -508,14 +508,50 @@ void testAccelerationChangeSetpointMidway() {
 			stepper.printState("Step");
             TEST_ASSERT_LESS_OR_EQUAL(stepper.getMaxVelocity()+0.1, effectiveVelocity);
         }
-        if (stepper.getPosition() == 100 && stepper.getSetpoint() == 200) {
-            stepper.setSetpoint(-100);
+        if (stepper.getPosition() == 100 && stepper.getSetpointPosition() == 200) {
+            stepper.setSetpointPosition(-100);
             cout << "Changed setpoint to -100 at t=" << millis()/1000.0 << endl;
         }
         waitMillis(1);
     }
 
-    TEST_ASSERT_EQUAL(stepper.getRoundedPosition(), stepper.getSetpoint());
+    TEST_ASSERT_EQUAL(stepper.getRoundedPosition(), stepper.getSetpointPosition());
+}
+
+void testVelocityControl()
+{
+	cout << "\033[34mtestVelocityControl\033[0m" << endl;
+
+	resetClock();
+	PneumaticStepper stepper = PneumaticStepper::makeTwoCylinderStepper();
+	TEST_ASSERT_EQUAL(PneumaticStepper::Controlstrategy::POSITION_CONTROL, stepper.getControlStrategy());
+	stepper.setControlStrategy(PneumaticStepper::Controlstrategy::VELOCITY_CONTROL);
+	TEST_ASSERT_EQUAL(PneumaticStepper::Controlstrategy::VELOCITY_CONTROL, stepper.getControlStrategy());
+	stepper.setControlStrategy(PneumaticStepper::Controlstrategy::POSITION_CONTROL);
+	TEST_ASSERT_EQUAL(PneumaticStepper::Controlstrategy::POSITION_CONTROL, stepper.getControlStrategy());
+	stepper.setPosition(0);
+	stepper.setAcceleration(10000); // in steps/s^2
+	stepper.setMaxVelocity(20); // in steps/s
+	stepper.setSetpointVelocity(15); // in steps/s
+	TEST_ASSERT_EQUAL(PneumaticStepper::Controlstrategy::VELOCITY_CONTROL, stepper.getControlStrategy());
+
+	while (millis() < 1000)
+	{
+		stepper.work();
+		waitMillis(1);
+	}
+	TEST_ASSERT_FLOAT_WITHIN(0.5, 15, stepper.getPosition());
+	stepper.setSetpointPosition(5);
+	TEST_ASSERT_EQUAL(PneumaticStepper::Controlstrategy::POSITION_CONTROL, stepper.getControlStrategy());
+
+	while (millis() < 2000)
+	{
+		stepper.work();
+		waitMillis(1);
+		stepper.printState("Down to 5");
+		//cout << "t=" << millis() << " pos=" << stepper.getPosition() << endl;
+	}
+	TEST_ASSERT_FLOAT_WITHIN(0.01, 5, stepper.getPosition());
 }
 
 
@@ -530,5 +566,5 @@ void testPneumaticStepper()
 	RUN_TEST(testSetPhase);
     RUN_TEST(testAccelerationSimpleProfile);
     RUN_TEST(testAccelerationChangeSetpointMidway);
-
+	RUN_TEST(testVelocityControl);
 }

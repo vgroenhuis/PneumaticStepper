@@ -40,12 +40,12 @@ extern void delay(unsigned long d);
 #include "PneumaticStepper.h"
 #include <algorithm>
 
-PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy, float maxVelocity, float position, float setpoint, int phaseNr, bool running)
+PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triState, int approachDirection, CylinderStrategy cylinderStrategy, float maxVelocity, float position, float setpointPosition, int phaseNr, bool running)
     : doubleActing(doubleActing),
       triState(triState),
       approachDirection(approachDirection),
       cylinderStrategy(cylinderStrategy),
-      setpoint(setpoint),
+      setpointPosition(setpointPosition),
       maxVelocity(maxVelocity),
       maxAcceleration(DEFAULT_ACCELERATION),
       maxDeceleration(DEFAULT_ACCELERATION),
@@ -54,7 +54,7 @@ PneumaticStepper::PneumaticStepper(int nCylinder, bool doubleActing, bool triSta
       positionValid(true),
       position(position),
       velocity(0),
-      targetVelocity(0),
+      setpointVelocity(0),
       phaseNr(phaseNr),
       running(running),
       floating(false),
@@ -80,7 +80,7 @@ PneumaticStepper::PneumaticStepper(const PneumaticStepper &other)
       lastWorkUs(other.lastWorkUs),
       positionValid(other.positionValid),
       position(other.position),
-      setpoint(other.setpoint),
+      setpointPosition(other.setpointPosition),
       phaseNr(other.phaseNr),
       running(other.running),
       floating(other.floating),
@@ -107,23 +107,24 @@ void PneumaticStepper::setCylinderStrategy(CylinderStrategy cylinderStrategy)
     updateCylinderState();
 }
 
-void PneumaticStepper::setSetpoint(float setpoint)
+void PneumaticStepper::setSetpointPosition(float setpointPosition)
 {
-    this->setpoint = setpoint;
+    this->controlStrategy = Controlstrategy::POSITION_CONTROL;
+    this->setpointPosition = setpointPosition;
     restrictSetpoint();
 }
 
 void PneumaticStepper::restrictSetpoint()
 {
     // Calculate final phase based on current phase and position difference
-    int stepsDiff = (int)round(setpoint - position);
+    int stepsDiff = (int)round(setpointPosition - position);
     int finalPhaseNr = (phaseNr + stepsDiff + 2 * getCylinderCount()) % (2 * getCylinderCount());
     if (finalPhaseNr < 0)
     {
         finalPhaseNr += 2 * getCylinderCount();
     }
 
-    // Restrict setpoint based on cylinder strategy for single-acting motors
+    // Restrict setpointPosition based on cylinder strategy for single-acting motors
     if (!doubleActing)
     {
         switch (cylinderStrategy)
@@ -131,13 +132,13 @@ void PneumaticStepper::restrictSetpoint()
         case CylinderStrategy::SINGLE_ENGAGE_ONLY:
             if ((finalPhaseNr & 1) == 1)
             {
-                setpoint -= 1.0f; // Move setpoint back one step
+                setpointPosition -= 1.0f; // Move setpointPosition back one step
             }
             break;
         case CylinderStrategy::DOUBLE_ENGAGE_ONLY:
             if ((finalPhaseNr & 1) == 0)
             {
-                setpoint += 1.0f; // Move setpoint forward one step
+                setpointPosition += 1.0f; // Move setpointPosition forward one step
             }
             break;
         default:
@@ -274,6 +275,109 @@ void PneumaticStepper::updateCylinderState()
 
 void PneumaticStepper::work()
 {
+    if (controlStrategy == Controlstrategy::POSITION_CONTROL)
+    {
+        workPositionControl();
+    }
+    else // VELOCITY_CONTROL
+    {
+        workVelocityControl();
+    }
+    
+    bool stateValid = true;
+    if (cylinderStrategy == CylinderStrategy::DOUBLE_ENGAGE_ONLY && (phaseNr & 1) == 0) {
+        stateValid = false;
+    }
+    if (cylinderStrategy == CylinderStrategy::SINGLE_ENGAGE_ONLY && (phaseNr & 1) == 1) {
+        stateValid = false;
+    }
+
+    if (stateValid) {
+        updateCylinderState();
+    }
+}
+
+void PneumaticStepper::advancePosition(float oldVelocity, float deltaTime)
+{
+    // Update position based on current velocity
+    float newPosition = position + 0.5f * (oldVelocity + velocity) * deltaTime;
+    float positionDelta = newPosition - position;
+
+    // Limit to maximum 1 step per iteration
+    if (positionDelta > 1.0f)
+    {
+        positionDelta = 1.0f;
+        velocity = positionDelta / deltaTime;
+        // velocity = maxVelocity;
+    }
+    else if (positionDelta < -1.0f)
+    {
+        positionDelta = -1.0f;
+        // velocity = -maxVelocity;
+        velocity = positionDelta / deltaTime;
+    }
+
+    float oldPosition = position;
+    position += positionDelta;
+
+    int roundedPositionChange = roundf(position) - roundf(oldPosition);
+
+    if (roundedPositionChange != 0)
+    {
+        lastStepDir = roundedPositionChange;
+        phaseNr = (phaseNr + roundedPositionChange + 2 * getCylinderCount()) % (2 * getCylinderCount());
+        roundedPositionChanged = true;
+    }
+}
+
+void PneumaticStepper::workVelocityControl()
+{
+    unsigned long timeUs = micros();
+    float deltaTime = (lastWorkUs > 0) ? (timeUs - lastWorkUs) * 1e-6f : 0; // Convert to seconds
+    lastWorkUs = timeUs;
+
+    if (floating)
+    {
+        // Motor is floating. We cannot control it, so just set velocity and position to zero.
+        position = 0;
+        velocity = 0;
+    }
+    else
+    {
+        // Accelerate/decelerate towards target velocity
+        float deltaVelocity = 0;
+        float thisAcceleration;
+        if ((std::signbit(setpointVelocity)==std::signbit(velocity)) && (fabs(setpointVelocity) > fabs(velocity))) {
+            thisAcceleration = maxAcceleration;
+        } else {
+            thisAcceleration = maxDeceleration;
+        }
+        
+        if (setpointVelocity > velocity)
+        {
+            deltaVelocity = thisAcceleration * deltaTime;
+            if (velocity + deltaVelocity > setpointVelocity)
+            {
+                deltaVelocity = setpointVelocity - velocity;
+            }
+        }
+        else if (setpointVelocity < velocity)
+        {
+            deltaVelocity = -thisAcceleration * deltaTime;
+            if (velocity + deltaVelocity < setpointVelocity)
+            {
+                deltaVelocity = setpointVelocity - velocity;
+            }
+        }
+
+        float oldVelocity = velocity;
+        velocity += deltaVelocity;
+        advancePosition(oldVelocity, deltaTime);
+    }
+}
+
+void PneumaticStepper::workPositionControl()
+{
     unsigned long timeUs = micros();
     float deltaTime = (lastWorkUs > 0) ? (timeUs - lastWorkUs) * 1e-6f : 0; // Convert to seconds
     lastWorkUs = timeUs;
@@ -341,83 +445,51 @@ void PneumaticStepper::work()
         {
             absTargetVelocity = 0;
         }
-        targetVelocity = std::copysign(absTargetVelocity, positionError);
+        setpointVelocity = std::copysign(absTargetVelocity, positionError);
         
-        //targetVelocity = std::clamp(targetVelocity, -maxVelocity, maxVelocity); // not defined in C++11
-        if (targetVelocity > maxVelocity)
+        //setpointVelocity = std::clamp(setpointVelocity, -maxVelocity, maxVelocity); // not defined in C++11
+        if (setpointVelocity > maxVelocity)
         {
-            targetVelocity = maxVelocity;
+            setpointVelocity = maxVelocity;
         }
-        else if (targetVelocity < -maxVelocity)
+        else if (setpointVelocity < -maxVelocity)
         {
-            targetVelocity = -maxVelocity;
+            setpointVelocity = -maxVelocity;
         }
 
         // Accelerate/decelerate towards target velocity
         float deltaVelocity = 0;
-        float thisAcceleration = (abs(targetVelocity) > abs(velocity)) ? maxAcceleration : maxDeceleration;
 
-        if (targetVelocity > velocity)
+
+        float thisAcceleration;
+        if ((std::signbit(setpointVelocity)==std::signbit(velocity)) && (fabs(setpointVelocity) > fabs(velocity))) {
+            thisAcceleration = maxAcceleration;
+        } else {
+            thisAcceleration = maxDeceleration;
+        }
+
+        if (setpointVelocity > velocity)
         {
             deltaVelocity = thisAcceleration * deltaTime;
-            if (velocity + deltaVelocity > targetVelocity)
+            if (velocity + deltaVelocity > setpointVelocity)
             {
-                deltaVelocity = targetVelocity - velocity;
+                deltaVelocity = setpointVelocity - velocity;
             }
         }
-        else if (targetVelocity < velocity)
+        else if (setpointVelocity < velocity)
         {
             deltaVelocity = -thisAcceleration * deltaTime;
-            if (velocity + deltaVelocity < targetVelocity)
+            if (velocity + deltaVelocity < setpointVelocity)
             {
-                deltaVelocity = targetVelocity - velocity;
+                deltaVelocity = setpointVelocity - velocity;
             }
         }
 
         float oldVelocity = velocity;
         velocity += deltaVelocity;
 
-        // Update position based on current velocity
-        float newPosition = position + 0.5f * (oldVelocity + velocity) * deltaTime;
-        float positionDelta = newPosition - position;
 
-        // Limit to maximum 1 step per iteration
-        if (positionDelta > 1.0f)
-        {
-            positionDelta = 1.0f;
-            velocity = positionDelta / deltaTime;
-            // velocity = maxVelocity;
-        }
-        else if (positionDelta < -1.0f)
-        {
-            positionDelta = -1.0f;
-            // velocity = -maxVelocity;
-            velocity = positionDelta / deltaTime;
-        }
-
-        float oldPosition = position;
-        position += positionDelta;
-
-        int roundedPositionChange = roundf(position) - roundf(oldPosition);
-
-        if (roundedPositionChange != 0)
-        {
-            lastStepDir = roundedPositionChange;
-            phaseNr = (phaseNr + roundedPositionChange + 2 * getCylinderCount()) % (2 * getCylinderCount());
-            roundedPositionChanged = true;
-        }
-    }
-
-    bool stateValid = true;
-    if (cylinderStrategy == CylinderStrategy::DOUBLE_ENGAGE_ONLY && (phaseNr & 1) == 0) {
-        stateValid = false;
-    }
-    if (cylinderStrategy == CylinderStrategy::SINGLE_ENGAGE_ONLY && (phaseNr & 1) == 1) {
-        stateValid = false;
-    }
-
-    if (stateValid) {
-        updateCylinderState();
+        advancePosition(oldVelocity, deltaTime);
     }
 
 #ifdef PNEU_DEBUG
@@ -507,7 +579,7 @@ void PneumaticStepper::printState(std::string title) const
     Serial.print(" pos=");
     Serial.print(position, 3);
     Serial.print(" set=");
-    Serial.print(setpoint, 3);
+    Serial.print(setpointPosition, 3);
     Serial.print(" speed=");
     Serial.print(velocity, 3);
     Serial.print(" phaseNr=");
@@ -550,9 +622,9 @@ void PneumaticStepper::printState(std::string title) const
     cout << " maxVel=" << maxVelocity 
          << " timeSec=" << setprecision(4) << setw(8) << micros() * 0.000001
          << " pos=" << setprecision(6) << setw(8) << position 
-         << " set=" << setpoint 
+         << " set=" << setpointPosition 
          << " vel=" << setprecision(6) << setw(8) << velocity
-         << " targetVel=" << setprecision(3) << setw(5) << targetVelocity
+         << " targetVel=" << setprecision(3) << setw(5) << setpointVelocity
          << " phaseNr=" << setw(1) << phaseNr << " cyl=[";
     for (int i = 0; i < getCylinderCount(); i++)
     {

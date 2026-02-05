@@ -24,10 +24,10 @@ public:
 	// Returns true if not enough time has elapsed since last goal angle adjustment
 	bool isMoving() const;
 
-	// Returns goal angle (the 'final' setpoint)
+	// Returns goal angle (the 'final' setpointPosition)
 	int getGoalAngle() const { return _goalAngle; }
 
-	// Returns _setAngle, the current setpoint of the servo. It may be different from goalAngle to compensate for undershooting.
+	// Returns _setAngle, the current setpointPosition of the servo. It may be different from goalAngle to compensate for undershooting.
 	int getSetAngle() const { return _setAngle; }
 
 	// Returns pulse length as mapped from getSetAngle() to pulse using 0 deg = minPulse, 180 deg = maxPulse

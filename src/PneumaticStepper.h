@@ -15,10 +15,21 @@ const float MAX_JITTER = 0.05f; // Timestamps may be off by at most this fractio
 class PneumaticStepper
 {
 public:
+    /* Default is position control. 
+        Calling setControlStrategy(...) switches between the two modes.
+        Calling setSetpointPosition(...) switches to position control mode.
+        Calling setSetpointVelocity(...) switches to velocity control mode.
+    */
+    enum class Controlstrategy
+    {
+        POSITION_CONTROL,
+        VELOCITY_CONTROL
+    };
+
     /*
         In motors with N single-acting cylinder, between 0 and N cylinders may be engaged depending on cylinder state.
         In wedge-driven motors, the drawback is that engaging multiple cylinders simultaneously may stress the teeth of the rack/gear.
-        The strategy may be selected to limit the number of simultaneously engaged cylinders, at setpoint or at any time.
+        The strategy may be selected to limit the number of simultaneously engaged cylinders, at setpointPosition or at any time.
         The drawback of SINGLE_ENGAGE is that when doing a step, one cylinder retracts and another engages to the rack; during the
         motion the rack might be able to move slightly, causing missed steps.
         For dual-acting cylinders, use ANY_ENGAGE.
@@ -27,15 +38,15 @@ public:
     {
         ANY_ENGAGE,           // default, for dual-acting cylinders
         SINGLE_ENGAGE_ONLY,   // exactly one cylinder is normally engaged
-        SINGLE_ENGAGE_AT_POS, // at setpoint, only one cylinder may be engaged to the rack/gear
+        SINGLE_ENGAGE_AT_POS, // at setpointPosition, only one cylinder may be engaged to the rack/gear
         DOUBLE_ENGAGE_ONLY,   // two cylinders are normally engaged
-        DOUBLE_ENGAGE_AT_POS  // at setpoint, two cylinders are engaged to the rack/gear
+        DOUBLE_ENGAGE_AT_POS  // at setpointPosition, two cylinders are engaged to the rack/gear
     };
 
     static constexpr float DEFAULT_ACCELERATION = 100.0; // in steps/sec^2. 100 is slow, 1000 is fast. 1000: In 0.1 second it accelerates from standstill to 100 steps/sec which is almost instant.
 
     PneumaticStepper(int nCylinder, bool doubleActing, bool triState = false, int approachDirection = 0, CylinderStrategy cylinderStrategy = CylinderStrategy::ANY_ENGAGE,
-                     float maxStepFrequency = 10, float position = 0, float setpoint = 0, int phaseNr = 0, bool running = true);
+                     float maxStepFrequency = 10, float position = 0, float setpointPosition = 0, int phaseNr = 0, bool running = true);
 
     //PneumaticStepper(const PneumaticStepper &other);
 
@@ -57,10 +68,20 @@ public:
     [[deprecated("Use getMaxVelocity() instead")]] float getFrequency() const { return getMaxVelocity(); }  // Alias for backward compatibility
     float getPosition() const { return position; }
     int getRoundedPosition() const { return roundf(position); }
-    float getSetpoint() const { return setpoint; }
-    void setSetpoint(float setpoint);
+
+    float getSetpointPosition() const { return setpointPosition; }
+    // Also sets strategy to POSITION_CONTROL
+    void setSetpointPosition(float setpointPosition);
+
+    float getSetpointVelocity() const { return setpointVelocity; }
+    // Also sets strategy to VELOCITY_CONTROL
+    void setSetpointVelocity(float velocity) { setpointVelocity = velocity; controlStrategy = Controlstrategy::VELOCITY_CONTROL; }
+
+    [[deprecated("Use getSetpointPosition() instead")]] float getSetpoint() const { return setpointPosition; }
+    [[deprecated("Use setSetpointPosition() instead")]] void setSetpoint(float setpointPosition) { setSetpointPosition(setpointPosition); }
+
     float getVelocity() { return velocity; }
-    void setVelocity(float velocity) { this->velocity = velocity; } // directly sets velocity, mostly relevant for velocity control
+    void setVelocity(float velocity) { this->velocity = velocity; } // directly sets velocity, mostly relevant for velocity control with infinite acceleration
     float getAcceleration() { return maxAcceleration; }
     // Set acceleration and deceleration. If deceleration not specified (or negative), then deceleration is set equal to acceleration.
     void setAcceleration(float acceleration, float deceleration=-1) { maxAcceleration = acceleration; maxDeceleration=(deceleration<0?acceleration:deceleration); }
@@ -70,9 +91,9 @@ public:
     int getPhaseNr() const { return phaseNr; }
     void setPhaseNr(int phaseNr);
     bool isFloating() const { return floating; }
-    // Returns difference between setpoint and current position
+    // Returns difference between setpointPosition and current position
     [[deprecated("Use getPositionError() instead")]] float getStepsTodo() const { return getPositionError(); }
-    float getPositionError() const { return setpoint - position; }
+    float getPositionError() const { return setpointPosition - position; }
     int getLastStepDir() const { return lastStepDir; }
     // Returns byte array with n elements indicating the cylinder states: 0=down, 1=up, 2=floating.
     const std::vector<uint8_t> getCylinderStates() const { return cylinderState; }
@@ -100,7 +121,8 @@ public:
     // Resets last change time to current time, blocking changes to position for the next period
     void resetLastChangeTime();
 
-    // Performs logic, advancing the motor by one step towards the setpoint if enough time has elapsed since last change
+    // Performs logic, either position control or velocity control.
+    // In case of position control: advancing the motor by one step towards the setpoint position if enough time has elapsed since last change
     void work();
 
 #ifdef PIO_UNIT_TESTING
@@ -112,22 +134,30 @@ public:
 
     // Prints representation to serial (or stdout if non-Arduino)
     void printState(std::string title="") const;
+
+    void setControlStrategy(Controlstrategy strategy) { this->controlStrategy = strategy; }
+    Controlstrategy getControlStrategy() const { return controlStrategy; }
 private:
     // Helper methods
     void updateCylinderState();
     void restrictSetpoint();
 
+    void workPositionControl();
+    void workVelocityControl();
+    void advancePosition(float oldVelocity, float deltaTime);
 
+
+    Controlstrategy controlStrategy = Controlstrategy::POSITION_CONTROL;
     //int nCylinder; use cylinderState.size() instead
     bool doubleActing;
     bool triState;
     int approachDirection;
     CylinderStrategy cylinderStrategy;
 
-    float setpoint;
-    float maxVelocity;     // in steps/sec, positive. If -1, then perform a step at every call to work()
-    float maxAcceleration; // in steps/sec^2
-    float maxDeceleration; // in steps/sec^2, usually larger than maxAcceleration because slowing down is easy
+    float setpointPosition; // in steps
+    float maxVelocity;      // in steps/sec, positive. If -1, then perform a step at every call to work()
+    float maxAcceleration;  // in steps/sec^2
+    float maxDeceleration;  // in steps/sec^2, usually larger than maxAcceleration because slowing down is easy
 
     unsigned long lastChangeUs; // timestamp of last change
     unsigned long lastWorkUs;   // timestamp of last work() routine
@@ -136,7 +166,7 @@ private:
     // state variables
     float position;
     float velocity; // current velocity in steps per second, positive or negative
-    float targetVelocity; // setpoint velocity
+    float setpointVelocity; // target velocity in steps per second, positive or negative. Used in both position control and velocity control.
 
     int phaseNr;
     bool running; // if not running then motor is decelerated to stop
@@ -150,7 +180,7 @@ private:
     bool roundedPositionChanged;  // Is guaranteed to be set when rounded position is changed. Sometimes also when it was not actually changed (such as in setPosition()).
 
     // Direction of last step, can be -1, or 1 if it is known, and 0 if unknown.
-    // Is used by work() to ensure that the setpoint is approached in the correct direction.
+    // Is used by work() to ensure that the setpointPosition is approached in the correct direction.
     int lastStepDir;
 
     // The state of each cylinder, is linked to _phaseNr and _floating. 0=down, 1=up, 2=floating (only for tri-state cylinders).

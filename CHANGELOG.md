@@ -1,6 +1,9 @@
 # Changelog
 PneumaticStepper library
 
+## [2.1.0] - 2026-02-05
+Implemented dedicated velocity control. Previously this was mimicked by setting the setpoint position to a very high (or very low) value, but this was not the most elegant solution. Now the velocity control has been implemented.
+
 ## [2.0.0] - 2026-01-04
 Major overhaul of PneumaticStepper library.
 PneuAccelStepper has been removed and its functionality integrated in PneumaticStepper.
