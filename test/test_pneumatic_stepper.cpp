@@ -469,11 +469,12 @@ void testAccelerationSimpleProfile() {
             stepper.printState("Step");
             previousStepMillis = millis();
 			float effectiveVelocity = 1.0/dt;
+			float thresholdVelocity = stepper.getMaxVelocity()*1.02;
 
-			if (effectiveVelocity > stepper.getMaxVelocity()+0.1) {
-				cout << "\033[31mError: effective velocity " << effectiveVelocity << " exceeds max velocity " << stepper.getMaxVelocity() << "\033[0m" << endl;
+			if (effectiveVelocity > thresholdVelocity) {
+				cout << "\033[31mError: effective velocity " << setprecision(10) << effectiveVelocity << " exceeds max velocity " << stepper.getMaxVelocity() << "\033[0m" << " dt=" << dt << endl;
 			}
-            TEST_ASSERT_LESS_OR_EQUAL(stepper.getMaxVelocity()+0.1, effectiveVelocity);
+            TEST_ASSERT_LESS_OR_EQUAL_FLOAT(thresholdVelocity, effectiveVelocity);
         }
         waitMillis(1);
     }

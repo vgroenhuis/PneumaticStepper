@@ -1,6 +1,6 @@
 {
   "name": "PneumaticStepper",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A library to manage pneumatic (stepper) motors and servo valves. Can be used to control the several pneumatic devices published by the author on Printables/Thingiverse/MyMiniFactory.",
   "keywords": ["pneumatic", "stepper", "servo", "valve", "motor"],
   "repository": 
