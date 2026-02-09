@@ -1,6 +1,9 @@
 # Changelog
 PneumaticStepper library
 
+## [2.2.0] - 2026-02-09
+Fixed inconsistencies and bugs in control. Separated setAcceleration() from setDeceleration(). Added flag to enable/disable limiting position changes to one steps per iteration.
+
 ## [2.1.0] - 2026-02-05
 Implemented dedicated velocity control. Previously this was mimicked by setting the setpoint position to a very high (or very low) value, but this was not the most elegant solution. Now the velocity control has been implemented.
 

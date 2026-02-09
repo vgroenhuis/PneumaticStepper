@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef max
-#error "max macro defined before including PneumaticStepper.h; this may cause compilation errors. Please #undef max before including PneumaticStepper.h"
+#warning "max macro defined before including PneumaticStepper.h; this may cause compilation errors. Please #undef max before including PneumaticStepper.h"
 #endif
 
 #include <stdint.h>
@@ -83,8 +83,8 @@ public:
     float getVelocity() { return velocity; }
     void setVelocity(float velocity) { this->velocity = velocity; } // directly sets velocity, mostly relevant for velocity control with infinite acceleration
     float getAcceleration() { return maxAcceleration; }
-    // Set acceleration and deceleration. If deceleration not specified (or negative), then deceleration is set equal to acceleration.
-    void setAcceleration(float acceleration, float deceleration=-1) { maxAcceleration = acceleration; maxDeceleration=(deceleration<0?acceleration:deceleration); }
+    // Set acceleration. Deceleration is not changed! Use setDeceleration(...) to set deceleration.
+    void setAcceleration(float acceleration) { maxAcceleration = acceleration; }
     float getDeceleration() { return maxDeceleration; }
     void setDeceleration(float deceleration) { maxDeceleration = deceleration; }
     bool isPositionValid() const { return positionValid; }
@@ -137,6 +137,9 @@ public:
 
     void setControlStrategy(Controlstrategy strategy) { this->controlStrategy = strategy; }
     Controlstrategy getControlStrategy() const { return controlStrategy; }
+
+    void setLimitMaxOneStepPerWorkCall(bool limit) { this->limitMaxOneStepPerWorkCall = limit; }
+    bool getLimitMaxOneStepPerWorkCall() const { return limitMaxOneStepPerWorkCall; }
 private:
     // Helper methods
     void updateCylinderState();
@@ -146,6 +149,8 @@ private:
     void workVelocityControl();
     void advancePosition(float oldVelocity, float deltaTime);
 
+    // returns setpointVelocity restricted to not exceed maxVelocity and such that the setpointPosition is approached in the correct direction
+    float getRestrictedSetpointVelocity() const;
 
     Controlstrategy controlStrategy = Controlstrategy::POSITION_CONTROL;
     //int nCylinder; use cylinderState.size() instead
@@ -187,4 +192,6 @@ private:
     std::vector<uint8_t> cylinderState;//[MAX_CYLINDERS];
 
     int errorCount;
+
+    bool limitMaxOneStepPerWorkCall = true; // if true, then at most one step is performed per call to work(). This is needed to ensure that the timing of steps is correct, but may be set to false for testing or if the work() routine is called very frequently.
 };

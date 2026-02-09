@@ -22,12 +22,12 @@
 #include <cmath>
 using namespace std;
 
-#ifdef PIO_UNIT_TESTING
+//#ifdef PIO_UNIT_TESTING
 // To facilitate testing
 extern unsigned long millis();
 extern unsigned long micros();
 extern void delay(unsigned long d);
-#endif
+//#endif
 
 #ifdef PNEU_DEBUG
 #define DBG_PRINTF(...) printf(__VA_ARGS__);
@@ -300,21 +300,24 @@ void PneumaticStepper::work()
 void PneumaticStepper::advancePosition(float oldVelocity, float deltaTime)
 {
     // Update position based on current velocity
-    float newPosition = position + 0.5f * (oldVelocity + velocity) * deltaTime;
+    //float newPosition = position + 0.5f * (oldVelocity + velocity) * deltaTime;
+    float newPosition = position + velocity * deltaTime;
     float positionDelta = newPosition - position;
 
-    // Limit to maximum 1 step per iteration
-    if (positionDelta > 1.0f)
-    {
-        positionDelta = 1.0f;
-        velocity = positionDelta / deltaTime;
-        // velocity = maxVelocity;
-    }
-    else if (positionDelta < -1.0f)
-    {
-        positionDelta = -1.0f;
-        // velocity = -maxVelocity;
-        velocity = positionDelta / deltaTime;
+    if (limitMaxOneStepPerWorkCall) {
+        // Limit to maximum 1 step per iteration
+        if (positionDelta > 1.0f)
+        {
+            positionDelta = 1.0f;
+            velocity = positionDelta / deltaTime;
+            // velocity = maxVelocity;
+        }
+        else if (positionDelta < -1.0f)
+        {
+            positionDelta = -1.0f;
+            // velocity = -maxVelocity;
+            velocity = positionDelta / deltaTime;
+        }
     }
 
     float oldPosition = position;
@@ -345,29 +348,34 @@ void PneumaticStepper::workVelocityControl()
     else
     {
         // Accelerate/decelerate towards target velocity
-        float deltaVelocity = 0;
+        float deltaVelocity;
         float thisAcceleration;
-        if ((std::signbit(setpointVelocity)==std::signbit(velocity)) && (fabs(setpointVelocity) > fabs(velocity))) {
+
+        // If current velocity and setpoint velocity have same sign and absolute setpoint velocity is bigger than current velocity: motor is accelerating.
+        // Otherwise, motor is decelerating.
+        if ((std::signbit(getRestrictedSetpointVelocity())==std::signbit(velocity)) && (fabs(getRestrictedSetpointVelocity()) > fabs(velocity))) {
             thisAcceleration = maxAcceleration;
         } else {
             thisAcceleration = maxDeceleration;
         }
         
-        if (setpointVelocity > velocity)
+        if (velocity < getRestrictedSetpointVelocity())
         {
             deltaVelocity = thisAcceleration * deltaTime;
-            if (velocity + deltaVelocity > setpointVelocity)
+            if (getRestrictedSetpointVelocity() < velocity + deltaVelocity)
             {
-                deltaVelocity = setpointVelocity - velocity;
+                deltaVelocity = getRestrictedSetpointVelocity() - velocity;
             }
         }
-        else if (setpointVelocity < velocity)
+        else if (getRestrictedSetpointVelocity() < velocity)
         {
             deltaVelocity = -thisAcceleration * deltaTime;
-            if (velocity + deltaVelocity < setpointVelocity)
+            if (velocity + deltaVelocity < getRestrictedSetpointVelocity())
             {
-                deltaVelocity = setpointVelocity - velocity;
+                deltaVelocity = getRestrictedSetpointVelocity() - velocity;
             }
+        } else {
+            deltaVelocity = 0;
         }
 
         float oldVelocity = velocity;
@@ -418,7 +426,9 @@ void PneumaticStepper::workPositionControl()
     } 
     else
     {
-        float positionError = getPositionError();
+        // calculate position error based on approximate position after deltaTime
+        float positionError = getPositionError(); //setpointPosition - (position+deltaTime*velocity);
+        //float positionError = setpointPosition - (position + deltaTime*velocity);
 
         if (approachDirection != 0 && this->lastStepDir != approachDirection) {
             if (round(positionError)*lastStepDir >= 0) {
@@ -431,6 +441,7 @@ void PneumaticStepper::workPositionControl()
         float absTargetVelocity;
         if (running && deltaTime > 0)
         {
+            /*
             // Time-based damping: divide error by damping time constant
             // This accounts for discrete timestep and prevents oscillation
             //const float dampingTimeConstant = 0.05f;  // seconds - controls approach speed
@@ -438,56 +449,118 @@ void PneumaticStepper::workPositionControl()
             absTargetVelocity = fabs(positionError) / (dampingTimeConstant + deltaTime);
             
             // Also respect deceleration limits
-            float maxDecelerationVelocity = sqrt(2 * maxDeceleration * fabs(positionError));
-            absTargetVelocity = std::min(absTargetVelocity, maxDecelerationVelocity);
+            // Calculate maximum velocity allowed by deceleration to reach the target position
+            // Factor 0.9 is a temporary hack to work around position overshoot
+            float maxAbsDecelerationVelocity = sqrt(2 * maxDeceleration * fabs(positionError));
+            absTargetVelocity = std::min(absTargetVelocity, maxAbsDecelerationVelocity);
+            */
+
+            float a = maxDeceleration;
+            //absTargetVelocity = (a*deltaTime+sqrt((a*deltaTime)*(a*deltaTime)+8*a*fabs(positionError)))/2;
+            //absTargetVelocity = sqrt(2*a*fabs(positionError));
+            absTargetVelocity = sqrt(2*a*fabs(positionError));
+            float velocityReduction = a*deltaTime;
+
+            // do not make absTargetVelocity too small due to velocityReduction
+            if (absTargetVelocity-velocityReduction < a*deltaTime) {
+                velocityReduction = absTargetVelocity - a*deltaTime;
+                if (velocityReduction<0) {
+                    velocityReduction = 0;
+                }
+            }
+
+            /*
+            if (velocityReduction > 0.9*absTargetVelocity) {
+                velocityReduction = 0.9f*absTargetVelocity;
+            }*/
+
+            absTargetVelocity -= velocityReduction;
+
+            if (absTargetVelocity < 0) {
+                absTargetVelocity = 0;
+            }
+
+            // one-step approach: if we are within one step from the target, then we set target velocity such that we reach the target in one step
+            float oneStepVelocity = fabs(positionError) / deltaTime;
+            absTargetVelocity = std::min(absTargetVelocity, oneStepVelocity);
         }
         else
         {
             absTargetVelocity = 0;
         }
-        setpointVelocity = std::copysign(absTargetVelocity, positionError);
+
+
+        float newSetpointVelocity = std::copysign(absTargetVelocity, positionError);
         
         //setpointVelocity = std::clamp(setpointVelocity, -maxVelocity, maxVelocity); // not defined in C++11
-        if (setpointVelocity > maxVelocity)
+        if (newSetpointVelocity > maxVelocity)
         {
-            setpointVelocity = maxVelocity;
+            newSetpointVelocity = maxVelocity;
         }
-        else if (setpointVelocity < -maxVelocity)
+        else if (newSetpointVelocity < -maxVelocity)
         {
-            setpointVelocity = -maxVelocity;
-        }
-
-        // Accelerate/decelerate towards target velocity
-        float deltaVelocity = 0;
-
-
-        float thisAcceleration;
-        if ((std::signbit(setpointVelocity)==std::signbit(velocity)) && (fabs(setpointVelocity) > fabs(velocity))) {
-            thisAcceleration = maxAcceleration;
-        } else {
-            thisAcceleration = maxDeceleration;
+            newSetpointVelocity = -maxVelocity;
         }
 
-        if (setpointVelocity > velocity)
+
         {
-            deltaVelocity = thisAcceleration * deltaTime;
-            if (velocity + deltaVelocity > setpointVelocity)
+            float thisAcceleration;
+            // If current velocity and setpoint velocity have same sign and absolute setpoint velocity is bigger than current velocity: motor is accelerating.
+            // Otherwise, motor is decelerating.
+            if ((std::signbit(newSetpointVelocity)==std::signbit(setpointVelocity)) && (fabs(newSetpointVelocity) > fabs(setpointVelocity))) {
+                thisAcceleration = maxAcceleration;
+            } else {
+                thisAcceleration = maxDeceleration;
+            }
+
+            // we only change setpointVelocity with at most thisAcceleration to prevent overshoot due to too fast changes in velocity
+            float dv = newSetpointVelocity - setpointVelocity;
+            if (dv > thisAcceleration * deltaTime)
             {
-                deltaVelocity = setpointVelocity - velocity;
+                setpointVelocity += thisAcceleration * deltaTime;
+            }
+            else if (dv < -thisAcceleration * deltaTime)
+            {
+                setpointVelocity -= thisAcceleration * deltaTime;
+            }
+            else
+            {
+                setpointVelocity = newSetpointVelocity;
             }
         }
-        else if (setpointVelocity < velocity)
-        {
-            deltaVelocity = -thisAcceleration * deltaTime;
-            if (velocity + deltaVelocity < setpointVelocity)
-            {
-                deltaVelocity = setpointVelocity - velocity;
-            }
-        }
+
 
         float oldVelocity = velocity;
-        velocity += deltaVelocity;
 
+        {
+            // Accelerate/decelerate towards target velocity
+            float deltaVelocity = 0;
+
+            float thisAcceleration;
+            if ((std::signbit(setpointVelocity)==std::signbit(velocity)) && (fabs(setpointVelocity) > fabs(velocity))) {
+                thisAcceleration = maxAcceleration;
+            } else {
+                thisAcceleration = maxDeceleration;
+            }
+
+            if (setpointVelocity > velocity)
+            {
+                deltaVelocity = thisAcceleration * deltaTime;
+                if (velocity + deltaVelocity > setpointVelocity)
+                {
+                    deltaVelocity = setpointVelocity - velocity;
+                }
+            }
+            else if (setpointVelocity < velocity)
+            {
+                deltaVelocity = -thisAcceleration * deltaTime;
+                if (velocity + deltaVelocity < setpointVelocity)
+                {
+                    deltaVelocity = setpointVelocity - velocity;
+                }
+            }
+            velocity += deltaVelocity;
+        }
 
         advancePosition(oldVelocity, deltaTime);
     }
@@ -637,4 +710,26 @@ void PneumaticStepper::printState(std::string title) const
         cout << " paused";
     cout << endl;
 #endif
+}
+
+float PneumaticStepper::getRestrictedSetpointVelocity() const
+{
+    float restrictedVelocity;
+    if (running) {
+        restrictedVelocity = setpointVelocity;
+    } else {
+        restrictedVelocity = 0;
+    }
+
+    // Restrict velocity to not exceed maxVelocity
+    if (restrictedVelocity > maxVelocity)
+    {
+        restrictedVelocity = maxVelocity;
+    }
+    else if (restrictedVelocity < -maxVelocity)
+    {
+        restrictedVelocity = -maxVelocity;
+    }
+
+    return restrictedVelocity;
 }
